@@ -1,6 +1,6 @@
 # 👑 oh-my-opencode-slim
 
-> **Fork Notice:** This is a fork of [alvinunreal/oh-my-opencode-slim](https://github.com/alvinunreal/oh-my-opencode-slim) maintained by [@tinof](https://github.com/tinof). This fork focuses on achieving **Claude Code-level capabilities** by deeply integrating Serena MCP, MorphLLM MCP, and advanced project parsing hooks.
+> **Fork Notice:** This is a fork of [alvinunreal/oh-my-opencode-slim](https://github.com/alvinunreal/oh-my-opencode-slim). This fork focuses on achieving **Claude Code-level capabilities** by deeply integrating Serena MCP, MorphLLM MCP (WarpGrep + FastApply), and advanced prompt conditioning hooks.
 
 A lightweight, high-performance agent orchestration plugin for [OpenCode AI](https://opencode.com/). Built for speed, efficiency, and advanced reasoning.
 
@@ -10,26 +10,73 @@ A lightweight, high-performance agent orchestration plugin for [OpenCode AI](htt
 
 The original `oh-my-opencode-slim` is an excellent foundation for multi-agent orchestration. This fork implements the **[OpenCode Parity Plan](opencode-parity-plan.md)** — a comprehensive strategy for closing the gap between OpenCode and industry-leading AI coding tools like Claude Code and Cursor.
 
-We achieve this through three main pillars:
+We achieve this through four main pillars:
 
 ### 1. Advanced MCP Integrations
-Instead of relying purely on bash commands and grep, this fork is designed to seamlessly integrate with high-end MCP servers:
-- **[Serena MCP](https://github.com/kris-mikael/serena)**: Unlocks LSP-aware structural navigation (go-to-definition, find references, safe renames, insert-after-symbol).
-- **[MorphLLM MCP](https://github.com/MorphL-AI/morph-mcp)**: Provides WarpGrep semantic code search and lightning-fast FastApply file edits that eliminate context pollution.
 
-### 2. Core Plugin Modifications
-We've modified the core `oh-my-opencode` logic to handle context smarter:
-- **@explorer rewrite:** Re-tuned to prioritize Serena AST/LSP searches over raw bash `grep`.
-- **Dynamic Phase Hooks:** New hooks that automatically fire at specific points (e.g., forcing a high-level codebase scan when a project is first opened).
-- **Smart Compaction:** Aggressive context pruning to keep prompts lean when tools return massive file dumps or JSON objects.
+Instead of relying purely on bash commands and grep, this fork integrates with high-end MCP servers:
 
-### 3. Advanced Custom Commands
-Added dedicated slash commands for advanced workflows:
-- `/trace`: Automated deep-dives using LSP to map out function call chains.
-- `/map`: Automatically generates and updates `codemap.md`, a repository atlas.
-- `/review-arch`: Dedicated architectural review tool for large refactors.
+- **[Serena MCP](https://github.com/oraios/serena)**: LSP-powered structural code navigation — go-to-definition (`find_symbol`), find references (`find_referencing_symbols`), call hierarchy tracing (`get_call_hierarchy`), and code maps (`get_code_map`). Works with Python (pylsp/Pyright), Rust (rust-analyzer), and TypeScript (typescript-language-server).
+- **[MorphLLM MCP](https://github.com/anthropics/morph-mcp)**: Two complementary capabilities:
+  - **WarpGrep v2** — AI-powered semantic code search that understands intent ("how does the auth flow work?") rather than just matching keywords. Runs as a parallel sub-agent, keeping the main model's context clean.
+  - **FastApply** — Fast, accurate file edits using partial code snippets with `// ... existing code ...` markers.
 
-See the [full plan](opencode-parity-plan.md) for the implementation roadmap and gap analysis.
+### 2. Three-Phase Explorer Architecture
+
+The `@explorer` agent has been **completely rewritten** from a simple grep-based search tool into a three-phase codebase navigation and execution tracing specialist:
+
+| Phase | Tool | Purpose |
+|-------|------|---------|
+| **Phase 1: Broad Discovery** | WarpGrep (`warpgrep_codebase_search`) | Semantic search to find all relevant files without keyword guessing |
+| **Phase 2: Structural Tracing** | Serena MCP (`find_symbol`, `get_call_hierarchy`, `find_referencing_symbols`) | Trace actual execution paths via LSP — not assumptions from file names |
+| **Phase 3: Detail Retrieval** | `read` + `ast_grep_search` | Read specific functions and verify structural patterns |
+
+This mirrors the implicit workflow that Claude Code's Explore sub-agent uses (search → trace → read), but made explicit to prevent confirmation bias.
+
+**Anti-Bias Protocol:** Explorer is instructed to never assume architecture from log output, file names, or variable names. It must trace the full structural path before reporting results.
+
+### 3. Dynamic Prompt Conditioning Hooks
+
+Instead of static reminders, the fork uses **context-aware hooks** that adapt to the conversation:
+
+#### Context-Aware Phase Reminders
+The `phase-reminder` hook classifies each user message and injects the appropriate reminder:
+
+| Message Type | Trigger Examples | Behavior |
+|---|---|---|
+| **Architectural** | "how does X work?", "trace the flow", "under the hood" | Injects anti-bias protocol, forces `@explorer` delegation for structural tracing |
+| **Correction** | "that's wrong", "you missed", "actually, it..." | Forces re-exploration with broader scope, escalates to `@oracle` if issue persists |
+| **Normal** | Everything else | Standard workflow reminder |
+
+#### Post-WarpGrep Nudge
+After any WarpGrep or `codebase_search` call, a nudge is automatically appended reminding the agent to proceed to Phase 2 structural tracing with Serena MCP tools — bridging broad discovery to structural verification.
+
+#### Session-Start Project Context Injection
+On the first message of each session, the hook auto-detects and injects project context files into the prompt:
+- `AGENTS.md` — OpenCode's native project context file (equivalent of Claude Code's `CLAUDE.md`)
+- `codemap.md` — Project architecture atlas (generated by the cartography skill)
+
+Additionally, the hook always injects a **Serena MCP onboarding check** prompt, ensuring the LSP server has been initialized for the current project before any structural tracing begins.
+
+#### Orchestrator Delegation Hardening
+The `@explorer` delegation rules in the Orchestrator have been hardened with a **CRITICAL RULE**: the Orchestrator must never infer architecture from log output, file names, or narrow grep results. If a question is about _how_ code works (not _where_ it is), delegation to `@explorer` is mandatory.
+
+### 4. Advanced Custom Commands & Policies
+
+#### Commands
+| Command | Agent | Purpose |
+|---|---|---|
+| `/trace` | `@explorer` | Three-phase execution path tracing using WarpGrep → Serena → detail |
+| `/map` | `@orchestrator` | Generate/update `codemap.md` project atlas using the cartography skill |
+| `/review-arch` | `@oracle` | Deep architectural review with Serena structural analysis |
+
+#### Smart Compaction Plugin
+The `smart-compaction.ts` plugin hooks into OpenCode's `experimental.session.compacting` to preserve architectural context across compaction boundaries — codemap discoveries, traced execution flows, delegation decisions, and user corrections are preserved while verbose tool outputs are summarized.
+
+#### Morph Tool Policy
+The `.opencode/rules/morph-policy.md` encodes search and edit hierarchies:
+- **Search**: WarpGrep (broad semantic) → Serena (structural tracing) → grep/glob (exact keywords)
+- **Edit**: FastApply (multi-line) → built-in Edit (single-line) → Write (new files)
 
 ---
 
@@ -60,13 +107,42 @@ Install and configure by following the instructions here:
 https://raw.githubusercontent.com/tinof/oh-my-opencode-slim/refs/heads/master/README.md
 ```
 
+### MCP Server Setup
+
+To fully leverage the three-phase explorer workflow, configure Serena and MorphLLM in your project `opencode.json`:
+
+```jsonc
+{
+  "mcp": {
+    "serena": {
+      "type": "local",
+      "command": ["uv", "run", "--directory", "/path/to/serena", "serena-mcp-server"],
+      "enabled": true
+    },
+    "morph-mcp": {
+      "type": "local",
+      "command": ["npx", "-y", "@anthropic-ai/morph-mcp"],
+      "enabled": true,
+      "env": {
+        "MORPH_API_KEY": "${MORPH_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+See the [full parity plan](opencode-parity-plan.md) for per-project `serena_config.yml` and agent MCP access list configuration.
+
 ---
 
 ## 📚 Documentation
 
-- [Agent Pantheon](docs/agents.md) - Learn about the different agents (@orchestrator, @explorer, @oracle, @librarian, @designer, @fixer)
-- [Local Development](docs/development.md) - How to build and test this plugin locally
-- [Configuration](docs/configuration.md) - Advanced plugin configuration
+- [Installation Guide](docs/installation.md) — Detailed setup and configuration options
+- [Quick Reference](docs/quick-reference.md) — Feature overview and usage patterns
+- [Provider Combination Matrix](docs/provider-combination-matrix.md) — Model/provider compatibility
+- [Cartography Skill](docs/cartography.md) — Codemap generation and project atlas
+- [Tmux Integration](docs/tmux-integration.md) — Background task management with tmux
+- [Parity Plan](opencode-parity-plan.md) — Full implementation roadmap and Claude Code gap analysis
 
 ---
 
