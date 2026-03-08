@@ -2,7 +2,7 @@
 
 > **Fork Notice:** This is a fork of [alvinunreal/oh-my-opencode-slim](https://github.com/alvinunreal/oh-my-opencode-slim). This fork focuses on achieving **Claude Code-level capabilities** by deeply integrating Serena MCP, MorphLLM MCP (WarpGrep + FastApply), and advanced prompt conditioning hooks.
 
-A lightweight, high-performance agent orchestration plugin for [OpenCode AI](https://opencode.com/). Built for speed, efficiency, and advanced reasoning.
+A lightweight, high-performance agent orchestration plugin for [OpenCode AI](https://opencode.ai/). Built for speed, efficiency, and advanced reasoning.
 
 ---
 
@@ -17,7 +17,7 @@ We achieve this through four main pillars:
 Instead of relying purely on bash commands and grep, this fork integrates with high-end MCP servers:
 
 - **[Serena MCP](https://github.com/oraios/serena)**: LSP-powered structural code navigation — go-to-definition (`find_symbol`), find references (`find_referencing_symbols`), call hierarchy tracing (`get_call_hierarchy`), and code maps (`get_code_map`). Works with Python (pylsp/Pyright), Rust (rust-analyzer), and TypeScript (typescript-language-server).
-- **[MorphLLM MCP](https://github.com/anthropics/morph-mcp)**: Two complementary capabilities:
+- **[MorphLLM MCP](https://github.com/morph-labs/morph-mcp)**: Two complementary capabilities:
   - **WarpGrep v2** — AI-powered semantic code search that understands intent ("how does the auth flow work?") rather than just matching keywords. Runs as a parallel sub-agent, keeping the main model's context clean.
   - **FastApply** — Fast, accurate file edits using partial code snippets with `// ... existing code ...` markers.
 
@@ -84,13 +84,6 @@ The `.opencode/rules/morph-policy.md` encodes search and edit hierarchies:
 
 ### For OpenCode Users
 
-**Option 1: Direct Install (Recommended)**
-Open the command palette in OpenCode (`Cmd+Shift+P` / `Ctrl+Shift+P`) and type:
-```bash
-/install https://github.com/tinof/oh-my-opencode-slim
-```
-
-**Option 2: Manual Config**
 Add to your `~/.config/opencode/opencode.jsonc`:
 ```json
 {
@@ -98,14 +91,8 @@ Add to your `~/.config/opencode/opencode.jsonc`:
 }
 ```
 
-### For LLM Agents
+OpenCode will fetch and load the plugin automatically on next launch.
 
-Paste this into any coding agent:
-
-```
-Install and configure by following the instructions here:
-https://raw.githubusercontent.com/tinof/oh-my-opencode-slim/refs/heads/master/README.md
-```
 
 ### MCP Server Setup
 
@@ -121,7 +108,7 @@ To fully leverage the three-phase explorer workflow, configure Serena and MorphL
     },
     "morph-mcp": {
       "type": "local",
-      "command": ["npx", "-y", "@anthropic-ai/morph-mcp"],
+      "command": ["npx", "-y", "@morph-labs/morph-mcp"],
       "enabled": true,
       "env": {
         "MORPH_API_KEY": "${MORPH_API_KEY}"
