@@ -85,6 +85,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
   // Initialize project context injection hook
   const projectContextHook = createProjectContextHook(ctx.directory);
+  type ProjectContextHookOutput = Parameters<
+    (typeof projectContextHook)['experimental.chat.messages.transform']
+  >[1];
 
   // Initialize delegate-task retry guidance hook
   const delegateTaskRetryHook = createDelegateTaskRetryHook(ctx);
@@ -270,7 +273,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     'experimental.chat.messages.transform': async (input, output) => {
       await projectContextHook['experimental.chat.messages.transform'](
         input,
-        output as any,
+        output as ProjectContextHookOutput,
       );
     },
 
