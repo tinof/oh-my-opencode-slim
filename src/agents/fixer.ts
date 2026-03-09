@@ -60,7 +60,7 @@ export function createFixerAgent(
       'Fast implementation specialist. Receives complete context and task spec, executes code changes efficiently.',
     config: {
       model,
-      temperature: 0.3,
+      temperature: 0.6,
       prompt,
     },
   };

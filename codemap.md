@@ -48,8 +48,8 @@ The plugin integrates with OpenCode to provide:
 | `src/config/` | Plugin configuration schemas, defaults, loaders, and MCP/agent override helpers. | [View Map](src/config/codemap.md) |
 | `src/hooks/` | Re-exported hook factories and option types for lifecycle hooks. | [View Map](src/hooks/codemap.md) |
 | `src/hooks/auto-update-checker/` | Startup update check hook with cache invalidation and optional auto-install. | [View Map](src/hooks/auto-update-checker/codemap.md) |
-| `src/hooks/phase-reminder/` | Orchestrator message transform hook that injects phase reminders. | [View Map](src/hooks/phase-reminder/codemap.md) |
-| `src/hooks/post-read-nudge/` | Read tool after-hook that appends delegation nudges. | [View Map](src/hooks/post-read-nudge/codemap.md) |
+| `src/hooks/post-edit-nudge/` | Edit/write after-hook that suggests running lsp_diagnostics. | |
+| `src/hooks/post-warpgrep-nudge/` | WarpGrep after-hook that nudges structural tracing via Serena. | [View Map](src/hooks/post-warpgrep-nudge/codemap.md) |
 | `src/mcp/` | Built-in MCP registry and config types for remote connectors. | [View Map](src/mcp/codemap.md) |
 | `src/tools/` | Tool registry plus background task tool implementations. | [View Map](src/tools/codemap.md) |
 | `src/tools/ast-grep/` | AST-grep CLI discovery, execution, and tool definitions. | [View Map](src/tools/ast-grep/codemap.md) |

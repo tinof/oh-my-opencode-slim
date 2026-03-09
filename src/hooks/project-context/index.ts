@@ -69,8 +69,11 @@ export function createProjectContextHook(projectDir: string) {
         }
       }
 
-      // Always inject Serena onboarding check
-      contextContent += `\n${SERENA_SESSION_PROMPT}\n`;
+      // Only inject Serena onboarding check when .serena/ directory exists
+      const serenaConfigured = existsSync(join(projectDir, '.serena'));
+      if (serenaConfigured) {
+        contextContent += `\n${SERENA_SESSION_PROMPT}\n`;
+      }
 
       const textPartIndex = msg.parts.findIndex(
         (p) => p.type === 'text' && p.text !== undefined,

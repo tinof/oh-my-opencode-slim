@@ -7,8 +7,7 @@ import {
   createAutoUpdateCheckerHook,
   createDelegateTaskRetryHook,
   createJsonErrorRecoveryHook,
-  createPhaseReminderHook,
-  createPostReadNudgeHook,
+  createPostEditNudgeHook,
   createPostWarpgrepNudgeHook,
   createProjectContextHook,
 } from './hooks';
@@ -78,11 +77,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     autoUpdate: true,
   });
 
-  // Initialize phase reminder hook for workflow compliance
-  const phaseReminderHook = createPhaseReminderHook();
-
-  // Initialize post-read nudge hook
-  const postReadNudgeHook = createPostReadNudgeHook();
+  // Initialize post-edit nudge hook for lsp_diagnostics reminder
+  const postEditNudgeHook = createPostEditNudgeHook();
 
   // Initialize post-WarpGrep nudge hook for structural tracing
   const postWarpgrepNudgeHook = createPostWarpgrepNudgeHook();
@@ -270,28 +266,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
     },
 
-    // Inject phase reminder + project context before sending to API (doesn't show in UI)
-    'experimental.chat.messages.transform': async (
-      input: Record<string, never>,
-      output: {
-        messages: Array<{
-          info: { role: string; agent?: string };
-          parts: Array<{ type: string; text?: string }>;
-        }>;
-      },
-    ) => {
-      // Chain: project context first (session start), then phase reminder (every turn)
+    // Inject project context before sending to API (doesn't show in UI)
+    'experimental.chat.messages.transform': async (input, output) => {
       await projectContextHook['experimental.chat.messages.transform'](
-        input,
-        output as any,
-      );
-      await phaseReminderHook['experimental.chat.messages.transform'](
         input,
         output as any,
       );
     },
 
-    // Post-tool hooks: retry guidance for delegation errors + post-read nudge + activity tracking
+    // Post-tool hooks: retry guidance for delegation errors + activity tracking
     'tool.execute.after': async (input, output) => {
       // Track tool activity on background task sessions for stall detection
       const toolInput = input as {
@@ -321,7 +304,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         },
       );
 
-      await postReadNudgeHook['tool.execute.after'](
+      await postEditNudgeHook['tool.execute.after'](
         input as {
           tool: string;
           sessionID?: string;

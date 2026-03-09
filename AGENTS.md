@@ -64,12 +64,21 @@ bun test -t "test-name-pattern"
 
 ```
 oh-my-opencode-slim/
-├── src/              # TypeScript source files
-├── dist/             # Built JavaScript and declarations
-├── node_modules/     # Dependencies
-├── biome.json        # Biome configuration
-├── tsconfig.json     # TypeScript configuration
-└── package.json      # Project manifest and scripts
+├── src/
+│   ├── agents/          # Agent system prompts (orchestrator, librarian, fixer, etc.)
+│   ├── background/      # Background task manager + tmux session manager
+│   ├── config/          # Plugin configuration schema, loader, agent-MCP mappings
+│   ├── hooks/           # Event hooks (JSON error recovery, post-read nudge, etc.)
+│   ├── mcp/             # Built-in MCP configs (linkup, context7, grep_app)
+│   ├── skills/          # Agent skills (included in package publish)
+│   ├── tools/           # Tool definitions (background tasks, LSP, etc.)
+│   ├── utils/           # Utilities (tmux, logging, etc.)
+│   ├── cli/             # CLI entry point (src/cli/index.ts)
+│   └── index.ts         # Main plugin export + event wiring
+├── dist/                # Built JavaScript and declarations
+├── biome.json           # Biome configuration
+├── tsconfig.json        # TypeScript configuration
+└── package.json         # Project manifest and scripts
 ```
 
 ## Key Dependencies
@@ -78,6 +87,64 @@ oh-my-opencode-slim/
 - `@opencode-ai/sdk` - OpenCode AI SDK
 - `zod` - Runtime validation
 - `vscode-jsonrpc` / `vscode-languageserver-protocol` - LSP support
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LINKUP_API_KEY` | Yes | API key for Linkup MCP (web search + URL fetching) |
+| `CONTEXT7_API_KEY` | Optional | API key for Context7 MCP (higher rate limits for library docs) |
+
+## Built-in MCP Architecture
+
+The plugin manages three built-in MCPs that are distributed to sub-agents:
+
+| MCP | Endpoint | Tools | Description |
+|-----|----------|-------|-------------|
+| `linkup` | `mcp.linkup.so` | `linkup-search`, `linkup-fetch` | Real-time web search + URL content extraction |
+| `context7` | `mcp.context7.com` | `resolve-library-id`, `query-docs` | Library documentation + code examples |
+| `grep_app` | `mcp.grep.app` | `searchGitHub` | Code search across 1M+ public GitHub repos |
+
+### Agent MCP Distribution
+
+| Agent | MCPs | Rationale |
+|-------|------|-----------|
+| **Orchestrator** | `linkup` | URL fetching for targeted reads; web search when delegation is overkill |
+| **@librarian** | `linkup`, `context7`, `grep_app` | Full research stack: web search, library docs, GitHub examples |
+| **@oracle** | `linkup` | Independent web research for architectural decisions |
+| **@fixer** | _(none)_ | Execution-only, no research allowed |
+| **@explorer** | _(none)_ | Local codebase tools only (warpgrep, Serena, ast_grep) |
+| **@designer** | _(none)_ | UI/UX implementation only |
+
+Configuration: `src/config/agent-mcps.ts` (defaults), overridable per-user via plugin config.
+
+## Background Task Timeouts
+
+Background tasks have per-agent timeouts and stall detection (`src/background/background-manager.ts`).
+
+### Default Timeouts
+
+| Agent | Timeout | Rationale |
+|-------|---------|-----------|
+| @fixer | 3 min | Execution-only, should be fast |
+| @explorer, @librarian, @designer | 5 min | Standard research/work |
+| @oracle | 10 min | Deep analysis |
+
+### Stall Detection
+
+If a background task has no tool activity for **2 minutes**, it's automatically cancelled. Activity is tracked via the `tool.execute.after` hook in `src/index.ts`.
+
+### Configuration
+
+Timeouts are configurable via the plugin's `background` config:
+```jsonc
+{
+  "background": {
+    "agentTimeouts": { "fixer": 180000, "explorer": 300000 },
+    "stallTimeoutMs": 120000
+  }
+}
+```
 
 ## Development Workflow
 

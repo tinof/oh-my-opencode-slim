@@ -1,6 +1,6 @@
 # src/hooks/
 
-This directory exposes the public hook entry points that feature code imports to tap into behavior such as update checks, phase reminders, and post-read nudges.
+This directory exposes the public hook entry points that feature code imports to tap into behavior such as update checks, post-edit nudges, and post-WarpGrep nudges.
 
 ## Responsibility
 
@@ -8,7 +8,7 @@ It acts as a single entry point that re-exports the factory functions and option
 
 ## Design
 
-- Aggregator/re-export pattern: `index.ts` consolidates factories (`createAutoUpdateCheckerHook`, `createPhaseReminderHook`, `createPostReadNudgeHook`) and the shared `AutoUpdateCheckerOptions` type so the rest of the app depends only on this flat namespace.
+- Aggregator/re-export pattern: `index.ts` consolidates factories (`createAutoUpdateCheckerHook`, `createPostEditNudgeHook`, `createPostWarpgrepNudgeHook`, `createProjectContextHook`) and the shared `AutoUpdateCheckerOptions` type so the rest of the app depends only on this flat namespace.
 - Each hook implementation underneath follows a factory-based design; callers receive a configured hook instance by passing structured options through the exported creator functions.
 
 ## Flow
