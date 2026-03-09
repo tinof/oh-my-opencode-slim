@@ -133,6 +133,12 @@ See the [full parity plan](opencode-parity-plan.md) for per-project `serena_conf
 
 ---
 
+## 🙏 Acknowledgements
+
+Our Morph MCP tool policy and FastApply routing instructions were inspired by [opencode-morph-fast-apply](https://github.com/JRedeker/opencode-morph-fast-apply) by [@JRedeker](https://github.com/JRedeker).
+
+---
+
 ## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for details.

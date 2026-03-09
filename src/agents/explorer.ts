@@ -71,7 +71,7 @@ export function createExplorerAgent(
       'Codebase navigation, execution tracing, and architectural mapping. Use for discovering architecture, tracing execution paths, and locating code patterns.',
     config: {
       model,
-      temperature: 0.1,
+      temperature: 1,
       prompt,
     },
   };

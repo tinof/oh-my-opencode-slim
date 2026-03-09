@@ -145,9 +145,7 @@ When user's approach seems problematic:
 `;
 
 export function createOrchestratorAgent(
-  model?:
-    | string
-    | Array<string | { id: string; variant?: string }>,
+  model?: string | Array<string | { id: string; variant?: string }>,
   customPrompt?: string,
   customAppendPrompt?: string,
 ): AgentDefinition {
@@ -164,7 +162,7 @@ export function createOrchestratorAgent(
     description:
       'AI coding orchestrator that delegates tasks to specialist agents for optimal quality, speed, and cost',
     config: {
-      temperature: 0.1,
+      temperature: 1,
       prompt,
     },
   };
