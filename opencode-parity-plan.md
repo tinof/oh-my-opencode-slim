@@ -146,25 +146,19 @@ The Explorer prompt encodes the three-phase workflow (WarpGrep → Serena → re
 
 **File:** `src/agents/orchestrator.ts` — **Updated**
 
-The `@explorer` delegation block includes a CRITICAL RULE: the Orchestrator must never infer architecture from log output, file names, or narrow grep results. If a question is about _how_ code works (not _where_ it is), delegation to `@explorer` is mandatory.
+The `@explorer` delegation block includes a Tip: for unfamiliar or large codebases, prefer @explorer for "how does X work" questions. The `<Workflow>` section is trimmed to essentials — step-by-step routing rules without verbose explanations Opus already knows.
 
 ### Dynamic Phase Reminder Hook
 
-**File:** `src/hooks/phase-reminder/index.ts` — **Rewritten**
+**File:** `src/hooks/phase-reminder/index.ts` — **Removed**
 
-Classifies each user message and injects a context-appropriate reminder via `experimental.chat.messages.transform` (invisible in the UI):
-
-| Message Type | Detection | Injected Behavior |
-|---|---|---|
-| **Architectural** | "how does X work?", "trace the flow", "under the hood", etc. | Anti-bias protocol, forces `@explorer` delegation |
-| **Correction** | "that's wrong", "you missed", "actually, it..." | Re-exploration with broader scope, escalation to `@oracle` |
-| **Normal** | Everything else | Standard workflow reminder |
+Previously classified user messages and injected context-aware reminders. Removed as redundant — the Explorer and Orchestrator prompts encode the workflow directly.
 
 ### Post-WarpGrep Nudge Hook
 
-**File:** `src/hooks/post-warpgrep-nudge/index.ts` — **New**
+**File:** `src/hooks/post-warpgrep-nudge/index.ts` — **Removed**
 
-A `tool.execute.after` hook that appends a structural tracing reminder after any WarpGrep or `codebase_search` call, bridging Phase 1 (broad discovery) to Phase 2 (Serena structural tracing).
+Previously appended a structural tracing nudge after WarpGrep calls. Removed as redundant — the Explorer prompt already encodes the three-phase workflow (WarpGrep → Serena → read).
 
 ### Session-Start Project Context Hook
 
@@ -186,7 +180,7 @@ On the first message of each session, auto-detects and injects project context f
 |---|---|---|
 | Delegate-task retry | `src/hooks/delegate-task-retry/` | Guidance when sub-agent delegation fails |
 | JSON error recovery | `src/hooks/json-error-recovery/` | Recovery from JSON parse errors in tool output |
-| Post-read nudge | `src/hooks/post-read-nudge/` | Contextual nudge after file reads |
+| Post-edit nudge | `src/hooks/post-edit-nudge/` | Light mention of lsp_diagnostics after edits |
 | Auto-update checker | `src/hooks/auto-update-checker/` | Plugin version checking at session start |
 
 ---
@@ -288,13 +282,14 @@ Encodes search and edit hierarchies:
 | File | Status | Description |
 |------|--------|-------------|
 | `src/agents/explorer.ts` | **Done** | Three-phase workflow with WarpGrep + Serena + grep |
-| `src/agents/orchestrator.ts` | **Done** | Hardened @explorer delegation rules with CRITICAL rule |
-| `src/hooks/phase-reminder/index.ts` | **Done** | Context-aware dynamic reminders |
-| `src/hooks/post-warpgrep-nudge/index.ts` | **Done** | Structural tracing nudge after broad search |
+| `src/agents/orchestrator.ts` | **Done** | Trimmed `<Workflow>`, softened delegation tip |
+| `src/hooks/phase-reminder/index.ts` | **Removed** | Redundant — prompt encodes workflow directly |
+| `src/hooks/post-warpgrep-nudge/index.ts` | **Removed** | Redundant — Explorer prompt encodes three-phase workflow |
+| `src/hooks/post-read-nudge/` | **Removed** | Redundant nagging after reads |
+| `src/hooks/post-edit-nudge/index.ts` | **Done** | Light lsp_diagnostics mention after edits |
 | `src/hooks/project-context/index.ts` | **Done** | Session-start codemap + AGENTS.md injection |
 | `src/hooks/delegate-task-retry/` | **Done** | Retry guidance for delegation failures |
 | `src/hooks/json-error-recovery/` | **Done** | JSON parse error recovery |
-| `src/hooks/post-read-nudge/` | **Done** | Post-read contextual nudge |
 | `src/index.ts` | **Done** | All hooks registered and wired |
 | `.opencode/commands/trace.md` | **Done** | /trace workflow command |
 | `.opencode/commands/map.md` | **Done** | /map codemap generation command |

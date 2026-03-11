@@ -4,7 +4,7 @@
  */
 
 const EDIT_NUDGE =
-  '\n\n---\nConsider running lsp_diagnostics to catch any type errors introduced by this change.';
+  '\n\n---\nlsp_diagnostics is available to verify this change if needed.';
 
 interface ToolExecuteAfterInput {
   tool: string;

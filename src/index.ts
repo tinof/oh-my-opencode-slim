@@ -8,7 +8,6 @@ import {
   createDelegateTaskRetryHook,
   createJsonErrorRecoveryHook,
   createPostEditNudgeHook,
-  createPostWarpgrepNudgeHook,
   createProjectContextHook,
 } from './hooks';
 import { createBuiltinMcps } from './mcp';
@@ -79,9 +78,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
   // Initialize post-edit nudge hook for lsp_diagnostics reminder
   const postEditNudgeHook = createPostEditNudgeHook();
-
-  // Initialize post-WarpGrep nudge hook for structural tracing
-  const postWarpgrepNudgeHook = createPostWarpgrepNudgeHook();
 
   // Initialize project context injection hook
   const projectContextHook = createProjectContextHook(ctx.directory);
@@ -308,19 +304,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
 
       await postEditNudgeHook['tool.execute.after'](
-        input as {
-          tool: string;
-          sessionID?: string;
-          callID?: string;
-        },
-        output as {
-          title: string;
-          output: string;
-          metadata: Record<string, unknown>;
-        },
-      );
-
-      await postWarpgrepNudgeHook['tool.execute.after'](
         input as {
           tool: string;
           sessionID?: string;
