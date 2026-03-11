@@ -64,8 +64,8 @@ The `@explorer` delegation rules in the Orchestrator use judgment-based guidance
 | `/map` | `@orchestrator` | Generate/update `codemap.md` project atlas using the cartography skill |
 | `/review-arch` | `@oracle` | Deep architectural review with Serena structural analysis |
 
-#### Smart Compaction Plugin
-The `smart-compaction.ts` plugin hooks into OpenCode's `experimental.session.compacting` to preserve architectural context across compaction boundaries — codemap discoveries, traced execution flows, delegation decisions, and user corrections are preserved while verbose tool outputs are summarized.
+#### Context Compaction (Opencode-DCP)
+Context compaction is handled by the external [Opencode-DCP](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) plugin (`@tarquinen/opencode-dcp`), which provides selective compression, deduplication, and error purging. Install with: `opencode install @tarquinen/opencode-dcp@latest`
 
 #### Morph Tool Policy
 The `.opencode/rules/morph-policy.md` encodes search and edit hierarchies:

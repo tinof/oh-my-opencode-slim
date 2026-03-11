@@ -307,6 +307,6 @@ This fork includes the **OpenCode Parity Plan** (`opencode-parity-plan.md`), a r
 
 - **Serena MCP** — LSP-powered structural navigation (go-to-definition, find-references, rename)
 - **MorphLLM MCP** — WarpGrep semantic search + FastApply file edits
-- **Plugin enhancements** — Explorer rewrite, Orchestrator hardening, dynamic hooks, smart compaction
+- **Plugin enhancements** — Explorer rewrite, Orchestrator hardening, dynamic hooks, Opencode-DCP context compaction
 
 Agents should be aware of the parity plan when making architectural decisions in this codebase.

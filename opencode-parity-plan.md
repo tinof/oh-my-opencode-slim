@@ -193,13 +193,18 @@ On the first message of each session, auto-detects and injects project context f
 
 ## 1.3 Compaction
 
-### Smart Compaction Plugin
+### Context Compaction (Opencode-DCP)
 
-**File:** `.opencode/plugins/smart-compaction.ts`
+**Plugin:** `@tarquinen/opencode-dcp` (external, not bundled)
 
-**Important:** This is a separate OpenCode plugin placed in the user's `.opencode/plugins/` directory — it is not bundled inside oh-my-opencode-slim. Users must copy this file into their project manually.
+Context compaction is handled by [Opencode-DCP](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning), a mature external plugin providing selective compression, deduplication, and error purging.
 
-Uses `experimental.session.compacting` to preserve architectural context (codemap discoveries, traced execution flows, delegation decisions, user corrections) while summarizing verbose tool outputs.
+**Install:**
+```bash
+opencode install @tarquinen/opencode-dcp@latest
+```
+
+**Key commands:** `/dcp compress`, `/dcp dedupe`, `/dcp purge-errors`
 
 ---
 
@@ -294,7 +299,7 @@ Encodes search and edit hierarchies:
 | `.opencode/commands/trace.md` | **Done** | /trace workflow command |
 | `.opencode/commands/map.md` | **Done** | /map codemap generation command |
 | `.opencode/commands/review-arch.md` | **Done** | /review-arch deep review command |
-| `.opencode/plugins/smart-compaction.ts` | **Done** | Context-preserving compaction (separate plugin) |
+| Opencode-DCP integration | **Done** | Context compaction via `@tarquinen/opencode-dcp` (external plugin, not bundled) |
 | `.opencode/rules/morph-policy.md` | **Done** | MorphLLM tool usage policy |
 
 ---
@@ -313,7 +318,7 @@ Encodes search and edit hierarchies:
 | Fast file edits | Built-in Edit tool | FastApply via MorphLLM MCP | **Closed** |
 | Dynamic prompt conditioning | Context-aware prompt fragments | 3 contextual reminder types + nudges | **Partial** — covers the key cases but less granular |
 | Project memory (CLAUDE.md) | Auto-generated, persistent, read+write | Session-start read-only injection | **Partial** — read only, no write-back |
-| Context compaction | Dedicated summarization | Smart compaction plugin | **Partial** — separate plugin, not bundled |
+| Context compaction | Dedicated summarization | Opencode-DCP (`@tarquinen/opencode-dcp`) | **Closed** — selective compression, deduplication, error purging |
 | Model-tier routing | Dynamic per-task (haiku/sonnet/opus) | Static per-agent via presets | **Partial** — no dynamic routing within a session |
 
 ## 2.2 Remaining Gaps
