@@ -106,7 +106,7 @@ export async function withLspClient<T>(
 ): Promise<T> {
   const absPath = resolve(filePath);
   const ext = extname(absPath);
-  const result = findServerForExtension(ext);
+  const result = findServerForExtension(ext, absPath);
 
   if (result.status !== 'found') {
     log('[lsp] withLspClient: server not found', {
@@ -120,6 +120,14 @@ export async function withLspClient<T>(
   // Use server-specific root detection instead of generic workspace root
   // Fall back to file's directory if no root patterns match
   const root = findServerProjectRoot(absPath, server) ?? dirname(absPath);
+
+  log('[lsp] withLspClient: selected server', {
+    filePath: absPath,
+    extension: ext,
+    server: server.id,
+    command: server.command.join(' '),
+    root,
+  });
 
   log('[lsp] withLspClient: acquiring client', {
     filePath: absPath,

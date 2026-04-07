@@ -8,12 +8,15 @@ import {
 /** Default MCPs per agent - "*" means all MCPs, "!item" excludes specific MCPs */
 
 export const DEFAULT_AGENT_MCPS: Record<AgentName, string[]> = {
-  orchestrator: ['linkup'],
+  orchestrator: ['*'],
   designer: [],
-  oracle: ['linkup'],
+  oracle: [],
   librarian: ['linkup', 'context7', 'grep_app'],
   explorer: [],
   fixer: [],
+  council: [],
+  councillor: [],
+  'council-master': [],
 };
 
 /**
@@ -35,7 +38,9 @@ export function parseList(items: string[], allAvailable: string[]): string[] {
     return allAvailable.filter((item) => !deny.includes(item));
   }
 
-  return allow.filter((item) => !deny.includes(item));
+  return allow.filter(
+    (item) => !deny.includes(item) && allAvailable.includes(item),
+  );
 }
 
 /**

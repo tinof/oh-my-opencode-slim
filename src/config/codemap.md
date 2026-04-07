@@ -80,7 +80,7 @@ FailoverConfig
 - `TmuxLayout`: Layout enum (`main-horizontal`, `main-vertical`, `tiled`, `even-horizontal`, `even-vertical`)
 - `Preset`: Named agent configuration presets
 - `AgentName`: Union type of all agent names
-- `McpName`: Union type of available MCPs (`'linkup'`, `'context7'`, `'grep_app'`)
+- `McpName`: Union type of available MCPs (`'websearch'`, `'context7'`, `'grep_app'`)
 - `BackgroundTaskConfig`: Background task concurrency settings
 - `FailoverConfig`: Failover behavior configuration
 - `ModelEntry`: Normalized model entry with optional per-model variant (`{ id: string; variant?: string }`)
@@ -198,18 +198,6 @@ src/config/
 
 ### Stability
 - `STABLE_POLLS_THRESHOLD` (3): Number of stable polls before considering state settled
-
-### Default MCP Assignments
-
-| Agent      | Default MCPs                          |
-|------------|---------------------------------------|
-| orchestrator | `[]`                                  |
-| designer    | `[]`                                  |
-| oracle      | `[]`                                  |
-| librarian   | `['linkup', 'context7', 'grep_app']` |
-| explorer    | `[]`                                  |
-| fixer       | `[]`                                  |
-
 
 ### Default Models
 | Agent      | Default Model           |

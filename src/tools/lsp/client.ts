@@ -12,8 +12,129 @@ import {
   StreamMessageWriter,
 } from 'vscode-jsonrpc/node';
 import { log } from '../../utils/logger';
-import { getLanguageId } from './config';
-import type { Diagnostic, ResolvedServer } from './types';
+import { getLanguageId, resolveServerCommand } from './config';
+import type {
+  Diagnostic,
+  DocumentDiagnosticReport,
+  ResolvedServer,
+} from './types';
+
+const START_TIMEOUT_MS = 5_000;
+const REQUEST_TIMEOUT_MS = 5_000;
+const OPEN_FILE_DELAY_MS = 250;
+const INITIALIZE_DELAY_MS = 100;
+const DIAGNOSTIC_SETTLE_DELAY_MS = 250;
+
+export const LSP_TIMEOUTS = {
+  start: START_TIMEOUT_MS,
+  request: REQUEST_TIMEOUT_MS,
+  openFileDelay: OPEN_FILE_DELAY_MS,
+  initializeDelay: INITIALIZE_DELAY_MS,
+  diagnosticSettleDelay: DIAGNOSTIC_SETTLE_DELAY_MS,
+};
+
+interface DiagnosticProviderCapabilities {
+  identifier?: string;
+  interFileDependencies?: boolean;
+  workspaceDiagnostics?: boolean;
+}
+
+export function getDiagnosticsCapabilitySummary({
+  diagnosticProvider,
+  publishDiagnosticsObserved = false,
+  workspaceConfigurationRequested = false,
+}: {
+  diagnosticProvider?: DiagnosticProviderCapabilities | null;
+  publishDiagnosticsObserved?: boolean;
+  workspaceConfigurationRequested?: boolean;
+}): {
+  availableModes: string[];
+  preferredMode: 'push' | 'pull';
+  inferredTransport: 'push' | 'pull' | 'hybrid';
+  pull: boolean;
+  pushObserved: boolean;
+  pullResultTracking: boolean;
+  workspaceDiagnostics: boolean;
+  interFileDependencies: boolean;
+  workspaceConfiguration: boolean;
+} {
+  const pull = Boolean(diagnosticProvider);
+  const workspaceDiagnostics = Boolean(
+    diagnosticProvider?.workspaceDiagnostics,
+  );
+  const interFileDependencies = Boolean(
+    diagnosticProvider?.interFileDependencies,
+  );
+
+  const availableModes = [
+    ...(pull ? ['pull', 'pull/full', 'pull/unchanged'] : ['push']),
+    ...(workspaceDiagnostics ? ['workspace-pull'] : []),
+    ...(publishDiagnosticsObserved ? ['push'] : []),
+  ];
+
+  return {
+    availableModes: Array.from(new Set(availableModes)),
+    preferredMode: pull ? 'pull' : 'push',
+    inferredTransport:
+      pull && publishDiagnosticsObserved ? 'hybrid' : pull ? 'pull' : 'push',
+    pull,
+    pushObserved: publishDiagnosticsObserved,
+    pullResultTracking: pull,
+    workspaceDiagnostics,
+    interFileDependencies,
+    workspaceConfiguration: workspaceConfigurationRequested,
+  };
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+  onTimeout?: () => Promise<void> | void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      void Promise.resolve(onTimeout?.()).catch(() => {});
+      reject(new Error(`${label} timeout after ${ms}ms`));
+    }, ms);
+
+    promise.then(
+      (value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+export function getWorkspaceConfiguration(
+  items: Array<{ section?: string } | undefined>,
+): Array<unknown> {
+  return items.map((item) => {
+    if (item?.section === 'json') {
+      return { validate: { enable: true } };
+    }
+
+    return null;
+  });
+}
 
 interface ManagedClient {
   client: LSPClient;
@@ -204,6 +325,15 @@ export class LSPClient {
   private stderrBuffer: string[] = [];
   private processExited = false;
   private diagnosticsStore = new Map<string, Diagnostic[]>();
+  private diagnosticResultIds = new Map<string, string>();
+  private documents = new Map<
+    string,
+    { version: number; text: string; languageId: string }
+  >();
+  private diagnosticProvider: DiagnosticProviderCapabilities | null = null;
+  private publishDiagnosticsObserved = false;
+  private supportsPullDiagnostics = false;
+  private workspaceConfigurationRequested = false;
 
   constructor(
     private root: string,
@@ -211,13 +341,20 @@ export class LSPClient {
   ) {}
 
   async start(): Promise<void> {
+    const command = resolveServerCommand(this.server.command, this.root);
+    if (!command) {
+      throw new Error(
+        `Failed to resolve LSP server command: ${this.server.command.join(' ')}`,
+      );
+    }
+
     log('[lsp] LSPClient.start: spawning server', {
       server: this.server.id,
-      command: this.server.command.join(' '),
+      command: command.join(' '),
       root: this.root,
     });
 
-    this.proc = spawn(this.server.command, {
+    this.proc = spawn(command, {
       stdin: 'pipe',
       stdout: 'pipe',
       stderr: 'pipe',
@@ -281,6 +418,18 @@ export class LSPClient {
     this.connection.onNotification(
       'textDocument/publishDiagnostics',
       (params: { uri?: string; diagnostics?: Diagnostic[] }) => {
+        if (!this.publishDiagnosticsObserved) {
+          this.publishDiagnosticsObserved = true;
+          log('[lsp] diagnostics capabilities: publishDiagnostics observed', {
+            server: this.server.id,
+            ...getDiagnosticsCapabilitySummary({
+              diagnosticProvider: this.diagnosticProvider,
+              publishDiagnosticsObserved: this.publishDiagnosticsObserved,
+              workspaceConfigurationRequested:
+                this.workspaceConfigurationRequested,
+            }),
+          });
+        }
         if (params.uri) {
           this.diagnosticsStore.set(params.uri, params.diagnostics ?? []);
         }
@@ -290,13 +439,29 @@ export class LSPClient {
     this.connection.onRequest(
       'workspace/configuration',
       (params: { items?: unknown[] }) => {
-        const items = params.items ?? [];
-        return items.map((item: unknown) => {
-          const configItem = item as { section?: string };
-          if (configItem.section === 'json')
-            return { validate: { enable: true } };
-          return {};
-        });
+        if (!this.workspaceConfigurationRequested) {
+          this.workspaceConfigurationRequested = true;
+          log(
+            '[lsp] diagnostics capabilities: workspace configuration requested',
+            {
+              server: this.server.id,
+              sections: (params.items ?? []).map((item) =>
+                item && typeof item === 'object' && 'section' in item
+                  ? ((item as { section?: string }).section ?? null)
+                  : null,
+              ),
+              ...getDiagnosticsCapabilitySummary({
+                diagnosticProvider: this.diagnosticProvider,
+                publishDiagnosticsObserved: this.publishDiagnosticsObserved,
+                workspaceConfigurationRequested:
+                  this.workspaceConfigurationRequested,
+              }),
+            },
+          );
+        }
+        return getWorkspaceConfiguration(
+          (params.items ?? []) as Array<{ section?: string } | undefined>,
+        );
       },
     );
 
@@ -356,67 +521,143 @@ export class LSPClient {
     });
 
     const rootUri = pathToFileURL(this.root).href;
-    await this.connection.sendRequest('initialize', {
-      processId: process.pid,
-      rootUri,
-      rootPath: this.root,
-      workspaceFolders: [{ uri: rootUri, name: 'workspace' }],
-      capabilities: {
-        textDocument: {
-          hover: { contentFormat: ['markdown', 'plaintext'] },
-          definition: { linkSupport: true },
-          references: {},
-          documentSymbol: { hierarchicalDocumentSymbolSupport: true },
-          publishDiagnostics: {},
-          rename: {
-            prepareSupport: true,
-            prepareSupportDefaultBehavior: 1,
-            honorsChangeAnnotations: true,
+    const result = await withTimeout(
+      this.connection.sendRequest('initialize', {
+        processId: process.pid,
+        rootUri,
+        rootPath: this.root,
+        workspaceFolders: [{ uri: rootUri, name: 'workspace' }],
+        capabilities: {
+          textDocument: {
+            diagnostic: {},
+            hover: { contentFormat: ['markdown', 'plaintext'] },
+            definition: { linkSupport: true },
+            references: {},
+            documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+            publishDiagnostics: {},
+            rename: {
+              prepareSupport: true,
+              prepareSupportDefaultBehavior: 1,
+              honorsChangeAnnotations: true,
+            },
+          },
+          workspace: {
+            symbol: {},
+            workspaceFolders: true,
+            configuration: true,
+            applyEdit: true,
+            workspaceEdit: { documentChanges: true },
           },
         },
-        workspace: {
-          symbol: {},
-          workspaceFolders: true,
-          configuration: true,
-          applyEdit: true,
-          workspaceEdit: { documentChanges: true },
-        },
-      },
-      ...this.server.initialization,
+        ...this.server.initialization,
+      }),
+      LSP_TIMEOUTS.request,
+      `LSP initialize (${this.server.id})`,
+    );
+
+    const capabilities =
+      result &&
+      typeof result === 'object' &&
+      'capabilities' in result &&
+      result.capabilities &&
+      typeof result.capabilities === 'object'
+        ? result.capabilities
+        : undefined;
+
+    this.diagnosticProvider =
+      capabilities && 'diagnosticProvider' in capabilities
+        ? (capabilities.diagnosticProvider as DiagnosticProviderCapabilities)
+        : null;
+    this.supportsPullDiagnostics = Boolean(this.diagnosticProvider);
+
+    log('[lsp] diagnostics capabilities negotiated', {
+      server: this.server.id,
+      diagnosticProvider: this.diagnosticProvider,
+      ...getDiagnosticsCapabilitySummary({
+        diagnosticProvider: this.diagnosticProvider,
+        publishDiagnosticsObserved: this.publishDiagnosticsObserved,
+        workspaceConfigurationRequested: this.workspaceConfigurationRequested,
+      }),
     });
-    this.connection.sendNotification('initialized');
-    await new Promise((r) => setTimeout(r, 300));
+
+    this.connection.sendNotification('initialized', {});
+    await new Promise((r) => setTimeout(r, LSP_TIMEOUTS.initializeDelay));
     log('[lsp] LSPClient.initialize: complete', { server: this.server.id });
   }
 
-  async openFile(filePath: string): Promise<void> {
-    const absPath = resolve(filePath);
-    if (this.openedFiles.has(absPath)) {
-      log('[lsp] openFile: already open, skipping', { filePath: absPath });
-      return;
+  private async waitForPublishedDiagnostics(
+    uri: string,
+    timeoutMs = LSP_TIMEOUTS.request,
+  ): Promise<Diagnostic[] | undefined> {
+    const cachedDiagnostics = this.diagnosticsStore.get(uri);
+    if (cachedDiagnostics) {
+      return cachedDiagnostics;
     }
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 100));
+      const diagnostics = this.diagnosticsStore.get(uri);
+      if (diagnostics) {
+        return diagnostics;
+      }
+    }
+
+    return this.diagnosticsStore.get(uri);
+  }
+
+  async openFile(filePath: string): Promise<void> {
+    await this.ensureDocumentSynced(filePath);
+  }
+
+  private async ensureDocumentSynced(filePath: string): Promise<void> {
+    const absPath = resolve(filePath);
+    const uri = pathToFileURL(absPath).href;
 
     const text = readFileSync(absPath, 'utf-8');
     const ext = extname(absPath);
     const languageId = getLanguageId(ext);
 
-    log('[lsp] openFile: opening document', {
-      filePath: absPath,
-      languageId,
-      size: text.length,
-    });
+    const existing = this.documents.get(uri);
 
-    this.connection?.sendNotification('textDocument/didOpen', {
-      textDocument: {
-        uri: pathToFileURL(absPath).href,
+    if (!existing) {
+      log('[lsp] ensureDocumentSynced: didOpen', {
+        filePath: absPath,
         languageId,
-        version: 1,
-        text,
-      },
-    });
-    this.openedFiles.add(absPath);
+        size: text.length,
+      });
+      this.connection?.sendNotification('textDocument/didOpen', {
+        textDocument: { uri, languageId, version: 1, text },
+      });
+      this.documents.set(uri, { version: 1, text, languageId });
+      this.openedFiles.add(absPath);
+      // allow server to settle
+      await new Promise((r) => setTimeout(r, LSP_TIMEOUTS.openFileDelay));
+      return;
+    }
 
-    await new Promise((r) => setTimeout(r, 1000));
+    if (existing.text !== text) {
+      const newVersion = existing.version + 1;
+      log('[lsp] ensureDocumentSynced: didChange', {
+        filePath: absPath,
+        languageId,
+        oldVersion: existing.version,
+        newVersion,
+        size: text.length,
+      });
+      this.connection?.sendNotification('textDocument/didChange', {
+        textDocument: { uri, version: newVersion },
+        contentChanges: [{ text }],
+      });
+      this.documents.set(uri, { version: newVersion, text, languageId });
+      // Invalidate cached publishDiagnostics so we wait for fresh results
+      this.diagnosticsStore.delete(uri);
+      this.diagnosticResultIds.delete(uri);
+      // allow server to settle after change
+      await new Promise((r) => setTimeout(r, LSP_TIMEOUTS.openFileDelay));
+    } else {
+      log('[lsp] ensureDocumentSynced: already synced', { filePath: absPath });
+    }
   }
 
   async definition(
@@ -426,10 +667,16 @@ export class LSPClient {
   ): Promise<unknown> {
     const absPath = resolve(filePath);
     await this.openFile(absPath);
-    return this.connection?.sendRequest('textDocument/definition', {
-      textDocument: { uri: pathToFileURL(absPath).href },
-      position: { line: line - 1, character },
-    });
+    return this.connection
+      ? withTimeout(
+          this.connection.sendRequest('textDocument/definition', {
+            textDocument: { uri: pathToFileURL(absPath).href },
+            position: { line: line - 1, character },
+          }),
+          LSP_TIMEOUTS.request,
+          `LSP definition (${this.server.id})`,
+        )
+      : undefined;
   }
 
   async references(
@@ -440,32 +687,88 @@ export class LSPClient {
   ): Promise<unknown> {
     const absPath = resolve(filePath);
     await this.openFile(absPath);
-    return this.connection?.sendRequest('textDocument/references', {
-      textDocument: { uri: pathToFileURL(absPath).href },
-      position: { line: line - 1, character },
-      context: { includeDeclaration },
-    });
+    return this.connection
+      ? withTimeout(
+          this.connection.sendRequest('textDocument/references', {
+            textDocument: { uri: pathToFileURL(absPath).href },
+            position: { line: line - 1, character },
+            context: { includeDeclaration },
+          }),
+          LSP_TIMEOUTS.request,
+          `LSP references (${this.server.id})`,
+        )
+      : undefined;
   }
 
   async diagnostics(filePath: string): Promise<{ items: Diagnostic[] }> {
     const absPath = resolve(filePath);
     const uri = pathToFileURL(absPath).href;
     await this.openFile(absPath);
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, LSP_TIMEOUTS.diagnosticSettleDelay));
 
-    try {
-      const result = await this.connection?.sendRequest(
-        'textDocument/diagnostic',
-        {
-          textDocument: { uri },
-        },
-      );
-      if (result && typeof result === 'object' && 'items' in result) {
-        return result as { items: Diagnostic[] };
+    log('[lsp] diagnostics mode selected', {
+      server: this.server.id,
+      filePath: absPath,
+      activeMode: this.supportsPullDiagnostics ? 'pull' : 'push',
+      ...getDiagnosticsCapabilitySummary({
+        diagnosticProvider: this.diagnosticProvider,
+        publishDiagnosticsObserved: this.publishDiagnosticsObserved,
+        workspaceConfigurationRequested: this.workspaceConfigurationRequested,
+      }),
+    });
+
+    if (this.supportsPullDiagnostics) {
+      try {
+        const result = this.connection
+          ? await withTimeout(
+              this.connection.sendRequest('textDocument/diagnostic', {
+                textDocument: { uri },
+                previousResultId: this.diagnosticResultIds.get(uri),
+              }),
+              LSP_TIMEOUTS.request,
+              `LSP diagnostics (${this.server.id})`,
+            )
+          : undefined;
+
+        const report = result as DocumentDiagnosticReport | undefined;
+        if (report?.kind === 'full') {
+          if (report.resultId) {
+            this.diagnosticResultIds.set(uri, report.resultId);
+          } else {
+            this.diagnosticResultIds.delete(uri);
+          }
+          this.diagnosticsStore.set(uri, report.items);
+          return { items: report.items };
+        }
+
+        if (report?.kind === 'unchanged') {
+          if (report.resultId) {
+            this.diagnosticResultIds.set(uri, report.resultId);
+          }
+          return { items: this.diagnosticsStore.get(uri) ?? [] };
+        }
+
+        if (result && typeof result === 'object' && 'items' in result) {
+          const legacyResult = result as { items: Diagnostic[] };
+          this.diagnosticsStore.set(uri, legacyResult.items);
+          return legacyResult;
+        }
+      } catch (error) {
+        log('[lsp] diagnostics: falling back to cached publishDiagnostics', {
+          server: this.server.id,
+          error: String(error),
+        });
       }
-    } catch {}
+    }
 
-    return { items: this.diagnosticsStore.get(uri) ?? [] };
+    const cachedDiagnostics = await this.waitForPublishedDiagnostics(uri);
+    if (cachedDiagnostics) {
+      return { items: cachedDiagnostics };
+    }
+
+    throw new Error(
+      `Unable to retrieve diagnostics from ${this.server.id}: request timed out or is unsupported.`,
+    );
   }
 
   async rename(
@@ -476,11 +779,17 @@ export class LSPClient {
   ): Promise<unknown> {
     const absPath = resolve(filePath);
     await this.openFile(absPath);
-    return this.connection?.sendRequest('textDocument/rename', {
-      textDocument: { uri: pathToFileURL(absPath).href },
-      position: { line: line - 1, character },
-      newName,
-    });
+    return this.connection
+      ? withTimeout(
+          this.connection.sendRequest('textDocument/rename', {
+            textDocument: { uri: pathToFileURL(absPath).href },
+            position: { line: line - 1, character },
+            newName,
+          }),
+          LSP_TIMEOUTS.request,
+          `LSP rename (${this.server.id})`,
+        )
+      : undefined;
   }
 
   isAlive(): boolean {
@@ -493,7 +802,11 @@ export class LSPClient {
     log('[lsp] LSPClient.stop: stopping', { server: this.server.id });
     try {
       if (this.connection) {
-        await this.connection.sendRequest('shutdown');
+        await withTimeout(
+          this.connection.sendRequest('shutdown'),
+          1_000,
+          `LSP shutdown (${this.server.id})`,
+        );
         this.connection.sendNotification('exit');
         this.connection.dispose();
       }
@@ -502,7 +815,13 @@ export class LSPClient {
     this.proc = null;
     this.connection = null;
     this.processExited = true;
+    this.diagnosticProvider = null;
+    this.publishDiagnosticsObserved = false;
+    this.supportsPullDiagnostics = false;
+    this.workspaceConfigurationRequested = false;
     this.diagnosticsStore.clear();
+    this.diagnosticResultIds.clear();
+    this.documents.clear();
     log('[lsp] LSPClient.stop: complete', { server: this.server.id });
   }
 }

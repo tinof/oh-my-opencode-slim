@@ -98,7 +98,7 @@ describe('providers', () => {
     });
 
     const agents = (config.presets as any).openai;
-    expect(agents.orchestrator.mcps).toContain('linkup');
+    expect(agents.orchestrator.mcps).toContain('*');
     expect(agents.librarian.mcps).toContain('linkup');
     expect(agents.librarian.mcps).toContain('context7');
     expect(agents.librarian.mcps).toContain('grep_app');

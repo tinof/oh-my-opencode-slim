@@ -14,7 +14,7 @@ const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
 - Report completion with summary of changes
 
 **Constraints**:
-- NO external research (no linkup, context7, grep_app)
+- NO external research (no websearch, context7, grep_app)
 - NO delegation (no background_task, no spawning subagents)
 - No multi-step research/planning; minimal execution sequence ok
 - If context is insufficient: use grep/glob/lsp_diagnostics directly — do not delegate
@@ -62,7 +62,7 @@ export function createFixerAgent(
       'Fast implementation specialist. Receives complete context and task spec, executes code changes efficiently.',
     config: {
       model,
-      temperature: 0.6,
+      temperature: 0.2,
       prompt,
     },
   };

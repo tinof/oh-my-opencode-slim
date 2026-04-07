@@ -117,38 +117,28 @@ async function runBackgroundUpdateCheck(
     `[auto-update-checker] Update available (${channel}): ${currentVersion} → ${latestVersion}`,
   );
 
+  if (pluginInfo.isPinned) {
+    showToast(
+      ctx,
+      `OMO-Slim ${latestVersion}`,
+      `v${latestVersion} available.\nVersion is pinned. Update your plugin config to apply.`,
+      'info',
+      8000,
+    );
+    log(`[auto-update-checker] Version is pinned; skipping auto-update.`);
+    return;
+  }
+
   if (!autoUpdate) {
     showToast(
       ctx,
       `OMO-Slim ${latestVersion}`,
-      `v${latestVersion} available. Restart to apply.`,
+      `v${latestVersion} available. Auto-update is disabled.`,
       'info',
       8000,
     );
     log('[auto-update-checker] Auto-update disabled, notification only');
     return;
-  }
-
-  if (pluginInfo.isPinned) {
-    const updated = updatePinnedVersion(
-      pluginInfo.configPath,
-      pluginInfo.entry,
-      latestVersion,
-    );
-    if (!updated) {
-      showToast(
-        ctx,
-        `OMO-Slim ${latestVersion}`,
-        `v${latestVersion} available. Restart to apply.`,
-        'info',
-        8000,
-      );
-      log('[auto-update-checker] Failed to update pinned version in config');
-      return;
-    }
-    log(
-      `[auto-update-checker] Config updated: ${pluginInfo.entry} → ${PACKAGE_NAME}@${latestVersion}`,
-    );
   }
 
   invalidatePackage(PACKAGE_NAME);

@@ -18,9 +18,9 @@ import type { BackgroundTaskConfig, PluginConfig } from '../config';
 import {
   FALLBACK_FAILOVER_TIMEOUT_MS,
   SUBAGENT_DELEGATION_RULES,
-  TMUX_SPAWN_DELAY_MS,
 } from '../config';
-import type { TmuxConfig } from '../config/schema';
+import type { MultiplexerConfig } from '../config/schema';
+import { getMultiplexer } from '../multiplexer';
 import {
   applyAgentVariant,
   createInternalAgentTextPart,
@@ -28,6 +28,7 @@ import {
 } from '../utils';
 import { log } from '../utils/logger';
 import {
+  extractSessionResult,
   type PromptBody,
   parseModelReference,
   promptWithTimeout,
@@ -59,7 +60,6 @@ export interface BackgroundTask {
   startedAt: Date; // Task creation timestamp
   completedAt?: Date; // Task completion/failure timestamp
   prompt: string; // Initial prompt
-  lastActivityAt?: Date; // Last tool execution timestamp (for stall detection)
 }
 
 /**
@@ -99,31 +99,19 @@ export class BackgroundTaskManager {
     (task: BackgroundTask) => void
   >();
 
-  // Timeout monitoring
-  private timeoutMonitor?: ReturnType<typeof setInterval>;
-
-  /** Default per-agent timeout in ms. Overridable via config.background.agentTimeouts */
-  private static readonly DEFAULT_AGENT_TIMEOUTS: Record<string, number> = {
-    fixer: 3 * 60 * 1000, // 3 min — execution-only, should be fast
-    explorer: 5 * 60 * 1000, // 5 min — codebase exploration
-    librarian: 5 * 60 * 1000, // 5 min — doc lookups
-    oracle: 10 * 60 * 1000, // 10 min — deep analysis
-    designer: 5 * 60 * 1000, // 5 min — UI work
-    general: 5 * 60 * 1000, // 5 min — general purpose
-  };
-  /** Default stall detection threshold (no tool activity for this long) */
-  private static readonly DEFAULT_STALL_TIMEOUT_MS = 2 * 60 * 1000; // 2 min
-  /** How often to check for timed-out tasks */
-  private static readonly MONITOR_INTERVAL_MS = 15 * 1000; // 15 sec
-
   constructor(
     ctx: PluginInput,
-    tmuxConfig?: TmuxConfig,
+    multiplexerConfig?: MultiplexerConfig,
     config?: PluginConfig,
   ) {
     this.client = ctx.client;
     this.directory = ctx.directory;
-    this.tmuxEnabled = tmuxConfig?.enabled ?? false;
+    // Check if multiplexer is actually available (handles 'auto' type correctly)
+    this.tmuxEnabled =
+      multiplexerConfig !== undefined &&
+      multiplexerConfig.type !== 'none' &&
+      multiplexerConfig.type !== undefined &&
+      getMultiplexer(multiplexerConfig) !== null;
     this.config = config;
     this.backgroundConfig = config?.background ?? {
       maxConcurrentStarts: 10,
@@ -204,9 +192,6 @@ export class BackgroundTaskManager {
 
     // Queue task for background start
     this.enqueueStart(task);
-
-    // Start timeout monitoring if not already running
-    this.startTimeoutMonitor();
 
     log(`[background-manager] task launched: ${task.id}`, {
       agent: opts.agent,
@@ -337,14 +322,13 @@ export class BackgroundTaskManager {
       // Track the agent type for this session for delegation checks
       this.agentBySessionId.set(session.data.id, task.agent);
       task.status = 'running';
-      task.lastActivityAt = new Date();
 
       // Register depth after session creation succeeds
       this.depthTracker.registerChild(task.parentSessionId, session.data.id);
 
       // Give TmuxSessionManager time to spawn the pane
       if (this.tmuxEnabled) {
-        await new Promise((r) => setTimeout(r, TMUX_SPAWN_DELAY_MS));
+        await new Promise((r) => setTimeout(r, 500));
       }
 
       // Calculate tool permissions based on the spawned agent's own delegation rules
@@ -372,6 +356,8 @@ export class BackgroundTaskManager {
       const errors: string[] = [];
       let succeeded = false;
       const sessionId = session.data.id;
+
+      const retryOnEmpty = this.config?.fallback?.retry_on_empty ?? true;
 
       for (let i = 0; i < attemptModels.length; i++) {
         const model = attemptModels[i];
@@ -406,6 +392,14 @@ export class BackgroundTaskManager {
             },
             timeoutMs,
           );
+
+          // Detect silent empty responses (e.g. provider rate-limited
+          // without error). When retry_on_empty is enabled (default),
+          // treat as failure so the fallback chain continues.
+          const extraction = await extractSessionResult(this.client, sessionId);
+          if (retryOnEmpty && extraction.empty) {
+            throw new Error('Empty response from provider');
+          }
 
           succeeded = true;
           break;
@@ -490,9 +484,6 @@ export class BackgroundTaskManager {
     const sessionId = event.properties?.info?.id ?? event.properties?.sessionID;
     if (!sessionId) return;
 
-    // Clean up depth tracker
-    this.depthTracker.cleanup(sessionId);
-
     const taskId = this.tasksBySessionId.get(sessionId);
     if (!taskId) return;
 
@@ -511,6 +502,7 @@ export class BackgroundTaskManager {
       // Clean up session tracking
       this.tasksBySessionId.delete(sessionId);
       this.agentBySessionId.delete(sessionId);
+      this.depthTracker.cleanup(sessionId);
 
       // Resolve any waiting callers
       const resolver = this.completionResolvers.get(taskId);
@@ -527,42 +519,25 @@ export class BackgroundTaskManager {
 
   /**
    * Extract task result and mark complete.
+   * When retry_on_empty is enabled (default), empty responses are
+   * treated as failures so the fallback chain can retry.
+   * When disabled, empty responses succeed with an empty string result.
    */
   private async extractAndCompleteTask(task: BackgroundTask): Promise<void> {
     if (!task.sessionId) return;
 
+    const retryOnEmpty = this.config?.fallback?.retry_on_empty ?? true;
+
     try {
-      const messagesResult = await this.client.session.messages({
-        path: { id: task.sessionId },
-      });
-      const messages = (messagesResult.data ?? []) as Array<{
-        info?: { role: string };
-        parts?: Array<{ type: string; text?: string }>;
-      }>;
-      const assistantMessages = messages.filter(
-        (m) => m.info?.role === 'assistant',
+      const extraction = await extractSessionResult(
+        this.client,
+        task.sessionId,
       );
 
-      const extractedContent: string[] = [];
-      for (const message of assistantMessages) {
-        for (const part of message.parts ?? []) {
-          if (
-            (part.type === 'text' || part.type === 'reasoning') &&
-            part.text
-          ) {
-            extractedContent.push(part.text);
-          }
-        }
-      }
-
-      const responseText = extractedContent
-        .filter((t) => t.length > 0)
-        .join('\n\n');
-
-      if (responseText) {
-        this.completeTask(task, 'completed', responseText);
+      if (extraction.empty && retryOnEmpty) {
+        this.completeTask(task, 'failed', 'Empty response from provider');
       } else {
-        this.completeTask(task, 'completed', '(No output)');
+        this.completeTask(task, 'completed', extraction.text);
       }
     } catch (error) {
       this.completeTask(
@@ -766,114 +741,21 @@ export class BackgroundTaskManager {
   }
 
   /**
-   * Track tool execution activity for stall detection.
-   * Called from the plugin's tool.execute.after hook when a tool runs
-   * in a session that belongs to a background task.
-   *
-   * @param sessionId - The session ID where the tool was executed
-   */
-  handleToolActivity(sessionId: string): void {
-    const taskId = this.tasksBySessionId.get(sessionId);
-    if (!taskId) return;
-    const task = this.tasks.get(taskId);
-    if (task && task.status === 'running') {
-      task.lastActivityAt = new Date();
-    }
-  }
-
-  /**
-   * Start the periodic timeout monitor.
-   * Automatically starts when the first task is launched and
-   * stops when all tasks complete.
-   */
-  private startTimeoutMonitor(): void {
-    if (this.timeoutMonitor) return; // Already running
-    this.timeoutMonitor = setInterval(() => {
-      this.checkTimeouts();
-    }, BackgroundTaskManager.MONITOR_INTERVAL_MS);
-  }
-
-  /**
-   * Stop the periodic timeout monitor when no tasks are running.
-   */
-  private stopTimeoutMonitor(): void {
-    if (!this.timeoutMonitor) return;
-    clearInterval(this.timeoutMonitor);
-    this.timeoutMonitor = undefined;
-  }
-
-  /**
-   * Check all running tasks for timeout or stall conditions.
-   * Called periodically by the timeout monitor.
-   */
-  private checkTimeouts(): void {
-    const now = Date.now();
-    let hasRunningTasks = false;
-
-    for (const [taskId, task] of this.tasks) {
-      if (task.status !== 'running') continue;
-      hasRunningTasks = true;
-
-      const elapsed = now - task.startedAt.getTime();
-
-      // Check total task timeout (per-agent or global)
-      const agentTimeouts =
-        this.backgroundConfig.agentTimeouts ??
-        BackgroundTaskManager.DEFAULT_AGENT_TIMEOUTS;
-      const taskTimeout =
-        agentTimeouts[task.agent] ??
-        BackgroundTaskManager.DEFAULT_AGENT_TIMEOUTS[task.agent] ??
-        5 * 60 * 1000;
-
-      if (elapsed > taskTimeout) {
-        log(
-          `[background-manager] task timed out after ${Math.round(elapsed / 1000)}s: ${taskId}`,
-          { agent: task.agent, description: task.description },
-        );
-        this.cancel(taskId);
-        continue;
-      }
-
-      // Check stall detection (no tool activity for too long)
-      const stallTimeout =
-        this.backgroundConfig.stallTimeoutMs ??
-        BackgroundTaskManager.DEFAULT_STALL_TIMEOUT_MS;
-      const lastActivity =
-        task.lastActivityAt?.getTime() ?? task.startedAt.getTime();
-      const stallDuration = now - lastActivity;
-
-      if (stallDuration > stallTimeout) {
-        log(
-          `[background-manager] task stalled (${Math.round(stallDuration / 1000)}s no activity): ${taskId}`,
-          { agent: task.agent, description: task.description },
-        );
-        this.cancel(taskId);
-      }
-    }
-
-    // Stop monitor if no running tasks remain
-    if (!hasRunningTasks) {
-      this.stopTimeoutMonitor();
-    }
-  }
-
-  /**
-   * Get the depth tracker for external use (e.g., council manager).
-   */
-  getDepthTracker(): SubagentDepthTracker {
-    return this.depthTracker;
-  }
-
-  /**
    * Clean up all tasks.
    */
   cleanup(): void {
-    this.stopTimeoutMonitor();
     this.startQueue = [];
     this.completionResolvers.clear();
     this.tasks.clear();
     this.tasksBySessionId.clear();
     this.agentBySessionId.clear();
     this.depthTracker.cleanupAll();
+  }
+
+  /**
+   * Get the depth tracker instance for use by other managers.
+   */
+  getDepthTracker(): SubagentDepthTracker {
+    return this.depthTracker;
   }
 }

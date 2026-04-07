@@ -75,7 +75,7 @@ export function createDesignerAgent(
       'UI/UX design, review, and implementation. Use for styling, responsive design, component architecture and visual polish.',
     config: {
       model,
-      temperature: 1,
+      temperature: 0.7,
       prompt,
     },
   };

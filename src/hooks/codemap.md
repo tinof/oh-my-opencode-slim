@@ -1,6 +1,6 @@
 # src/hooks/
 
-This directory exposes the public hook entry points that feature code imports to tap into behavior such as update checks, post-edit nudges, error recovery, rate-limit fallback, and delegation guidance.
+This directory exposes the public hook entry points that feature code imports to tap into behavior such as workflow reminders, error recovery, rate-limit fallback, and delegation guidance.
 
 ## Responsibility
 

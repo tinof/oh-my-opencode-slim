@@ -1,29 +1,32 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import { createAgents, getAgentConfigs } from './agents';
-import { BackgroundTaskManager, TmuxSessionManager } from './background';
-import { loadPluginConfig, type TmuxConfig } from './config';
+import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
+import { loadPluginConfig, type MultiplexerConfig } from './config';
 import { parseList } from './config/agent-mcps';
+import { CouncilManager } from './council';
 import {
   createAutoUpdateCheckerHook,
   createChatHeadersHook,
   createDelegateTaskRetryHook,
+  createFilterAvailableSkillsHook,
   createJsonErrorRecoveryHook,
   createPostEditNudgeHook,
   createProjectContextHook,
   ForegroundFallbackManager,
 } from './hooks';
 import { createBuiltinMcps } from './mcp';
+import { getMultiplexer, startAvailabilityCheck } from './multiplexer';
 import {
   ast_grep_replace,
   ast_grep_search,
   createBackgroundTools,
+  createCouncilTool,
   lsp_diagnostics,
   lsp_find_references,
   lsp_goto_definition,
   lsp_rename,
   setUserLspConfig,
 } from './tools';
-import { startTmuxCheck } from './utils';
 import { log } from './utils/logger';
 
 const OhMyOpenCodeLite: Plugin = async (ctx) => {
@@ -69,35 +72,61 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     }
   }
 
-  // Parse tmux config with defaults
-  const tmuxConfig: TmuxConfig = {
-    enabled: config.tmux?.enabled ?? false,
-    layout: config.tmux?.layout ?? 'main-vertical',
-    main_pane_size: config.tmux?.main_pane_size ?? 60,
+  // Parse multiplexer config with defaults
+  const multiplexerConfig: MultiplexerConfig = {
+    type: config.multiplexer?.type ?? 'none',
+    layout: config.multiplexer?.layout ?? 'main-vertical',
+    main_pane_size: config.multiplexer?.main_pane_size ?? 60,
   };
 
-  log('[plugin] initialized with tmux config', {
-    tmuxConfig,
-    rawTmuxConfig: config.tmux,
+  // Get multiplexer instance for capability checks
+  const multiplexer = getMultiplexer(multiplexerConfig);
+  const multiplexerEnabled =
+    multiplexerConfig.type !== 'none' && multiplexer !== null;
+
+  log('[plugin] initialized with multiplexer config', {
+    multiplexerConfig,
+    enabled: multiplexerEnabled,
     directory: ctx.directory,
   });
 
-  // Start background tmux check if enabled
-  if (tmuxConfig.enabled) {
-    startTmuxCheck();
+  // Start background availability check if enabled
+  if (multiplexerEnabled) {
+    startAvailabilityCheck(multiplexerConfig);
   }
 
-  const backgroundManager = new BackgroundTaskManager(ctx, tmuxConfig, config);
+  const backgroundManager = new BackgroundTaskManager(
+    ctx,
+    multiplexerConfig,
+    config,
+  );
   const backgroundTools = createBackgroundTools(
     ctx,
     backgroundManager,
-    tmuxConfig,
+    multiplexerConfig,
     config,
   );
+
+  // Initialize council tools (only when council is configured)
+  const councilTools = config.council
+    ? createCouncilTool(
+        ctx,
+        new CouncilManager(
+          ctx,
+          config,
+          backgroundManager.getDepthTracker(),
+          multiplexerEnabled,
+        ),
+      )
+    : {};
+
   const mcps = createBuiltinMcps(config.disabled_mcps);
 
-  // Initialize TmuxSessionManager to handle OpenCode's built-in Task tool sessions
-  const tmuxSessionManager = new TmuxSessionManager(ctx, tmuxConfig);
+  // Initialize MultiplexerSessionManager to handle OpenCode's built-in Task tool sessions
+  const multiplexerSessionManager = new MultiplexerSessionManager(
+    ctx,
+    multiplexerConfig,
+  );
 
   // Initialize auto-update checker hook
   const autoUpdateChecker = createAutoUpdateCheckerHook(ctx, {
@@ -105,14 +134,20 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     autoUpdate: true,
   });
 
-  // Initialize post-edit nudge hook for lsp_diagnostics reminder
-  const postEditNudgeHook = createPostEditNudgeHook();
-
   // Initialize project context injection hook
   const projectContextHook = createProjectContextHook(ctx.directory);
   type ProjectContextHookOutput = Parameters<
     (typeof projectContextHook)['experimental.chat.messages.transform']
   >[1];
+
+  // Initialize available skills filter hook
+  const filterAvailableSkillsHook = createFilterAvailableSkillsHook(
+    ctx,
+    config,
+  );
+
+  // Initialize post-edit nudge hook
+  const postEditNudgeHook = createPostEditNudgeHook();
 
   const chatHeadersHook = createChatHeadersHook(ctx);
 
@@ -136,6 +171,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     tool: {
       ...backgroundTools,
+      ...councilTools,
       lsp_goto_definition,
       lsp_find_references,
       lsp_diagnostics,
@@ -215,6 +251,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         if (!chainModels || chainModels.length === 0) continue;
 
         if (!effectiveArrays[agentName]) {
+          // Agent has no _modelArray — seed from its current string model so
+          // the fallback chain appends after it rather than replacing it.
           const entry = configAgent[agentName] as
             | Record<string, unknown>
             | undefined;
@@ -273,8 +311,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         Object.assign(configMcp, mcps);
       }
 
-      // Get all MCP names from our config
-      const allMcpNames = Object.keys(mcps);
+      // Get all MCP names from the merged config (built-in + custom)
+      const mergedMcpConfig = opencodeConfig.mcp as
+        | Record<string, unknown>
+        | undefined;
+      const allMcpNames = Object.keys(mergedMcpConfig ?? mcps);
 
       // For each agent, create permission rules based on their mcps list
       for (const [agentName, agentConfig] of Object.entries(agents)) {
@@ -322,8 +363,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       // Handle auto-update checking
       await autoUpdateChecker.event(input);
 
-      // Handle tmux pane spawning for OpenCode's Task tool sessions
-      await tmuxSessionManager.onSessionCreated(
+      // Handle multiplexer pane spawning for OpenCode's Task tool sessions
+      await multiplexerSessionManager.onSessionCreated(
         input.event as {
           type: string;
           properties?: {
@@ -334,14 +375,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       // Handle session.status events for:
       // 1. BackgroundTaskManager: completion detection
-      // 2. TmuxSessionManager: pane cleanup
+      // 2. MultiplexerSessionManager: pane cleanup
       await backgroundManager.handleSessionStatus(
         input.event as {
           type: string;
           properties?: { sessionID?: string; status?: { type: string } };
         },
       );
-      await tmuxSessionManager.onSessionStatus(
+      await multiplexerSessionManager.onSessionStatus(
         input.event as {
           type: string;
           properties?: { sessionID?: string; status?: { type: string } };
@@ -350,14 +391,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       // Handle session.deleted events for:
       // 1. BackgroundTaskManager: task cleanup
-      // 2. TmuxSessionManager: pane cleanup
+      // 2. MultiplexerSessionManager: pane cleanup
       await backgroundManager.handleSessionDeleted(
         input.event as {
           type: string;
           properties?: { info?: { id?: string }; sessionID?: string };
         },
       );
-      await tmuxSessionManager.onSessionDeleted(
+      await multiplexerSessionManager.onSessionDeleted(
         input.event as {
           type: string;
           properties?: { sessionID?: string };
@@ -367,26 +408,34 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     'chat.headers': chatHeadersHook['chat.headers'],
 
-    // Inject project context before sending to API (doesn't show in UI)
-    'experimental.chat.messages.transform': async (input, output) => {
+    // Inject project context and filter available skills before sending to API (doesn't show in UI)
+    'experimental.chat.messages.transform': async (
+      input: Record<string, never>,
+      output: { messages: unknown[] },
+    ): Promise<void> => {
+      // Type assertion since we know the structure matches MessageWithParts[]
+      const typedOutput = output as {
+        messages: Array<{
+          info: { role: string; agent?: string; sessionID?: string };
+          parts: Array<{
+            type: string;
+            text?: string;
+            [key: string]: unknown;
+          }>;
+        }>;
+      };
       await projectContextHook['experimental.chat.messages.transform'](
         input,
-        output as ProjectContextHookOutput,
+        typedOutput as ProjectContextHookOutput,
+      );
+      await filterAvailableSkillsHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
       );
     },
 
-    // Post-tool hooks: retry guidance for delegation errors + activity tracking
+    // Post-tool hooks: retry guidance for delegation errors + post-edit nudge
     'tool.execute.after': async (input, output) => {
-      // Track tool activity on background task sessions for stall detection
-      const toolInput = input as {
-        tool: string;
-        sessionID?: string;
-        callID?: string;
-      };
-      if (toolInput.sessionID) {
-        backgroundManager.handleToolActivity(toolInput.sessionID);
-      }
-
       await delegateTaskRetryHook['tool.execute.after'](
         input as { tool: string },
         output as { output: unknown },
@@ -427,6 +476,9 @@ export type {
   AgentName,
   AgentOverrideConfig,
   McpName,
+  MultiplexerConfig,
+  MultiplexerLayout,
+  MultiplexerType,
   PluginConfig,
   TmuxConfig,
   TmuxLayout,
