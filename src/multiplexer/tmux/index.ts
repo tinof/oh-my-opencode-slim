@@ -46,8 +46,14 @@ export class TmuxMultiplexer implements Multiplexer {
     }
 
     try {
-      // Build the attach command
-      const opencodeCmd = `opencode attach ${serverUrl} --session ${sessionId}`;
+      // Shell-escape a value for use inside a single-quoted shell argument.
+      // Single-quoting prevents variable/command expansion; the only char that
+      // needs escaping inside single quotes is the single-quote itself.
+      const shellEscape = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+
+      // Build the attach command with escaped values to prevent injection if
+      // serverUrl or sessionId ever contains shell metacharacters.
+      const opencodeCmd = `opencode attach ${shellEscape(serverUrl)} --session ${shellEscape(sessionId)}`;
 
       // tmux split-window -h -d -P -F '#{pane_id}' <cmd>
       const args = [

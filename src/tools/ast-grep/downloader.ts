@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
@@ -34,6 +35,39 @@ const PLATFORM_MAP: Record<string, PlatformInfo> = {
   'win32-arm64': { arch: 'aarch64', os: 'pc-windows-msvc' },
   'win32-ia32': { arch: 'i686', os: 'pc-windows-msvc' },
 };
+
+/**
+ * Compute the SHA-256 hex digest of a buffer.
+ */
+function sha256Hex(data: ArrayBuffer): string {
+  return createHash('sha256').update(Buffer.from(data)).digest('hex');
+}
+
+/**
+ * Fetch the checksums.txt file for a release and return the expected SHA-256
+ * hash for the given asset name, or null if unavailable/unparseable.
+ */
+async function fetchExpectedChecksum(
+  version: string,
+  assetName: string,
+): Promise<string | null> {
+  const checksumUrl = `https://github.com/${REPO}/releases/download/${version}/checksums.txt`;
+  try {
+    const response = await fetch(checksumUrl, { redirect: 'follow' });
+    if (!response.ok) return null;
+    const text = await response.text();
+    // Format: "<sha256hash>  <filename>" (sha256sum output)
+    for (const line of text.split('\n')) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 2 && parts[1] === assetName) {
+        return parts[0].toLowerCase();
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export function getCacheDir(): string {
   if (process.platform === 'win32') {
@@ -88,14 +122,33 @@ export async function downloadAstGrep(
       mkdirSync(cacheDir, { recursive: true });
     }
 
+    // Fetch the expected checksum before downloading the binary.
+    const expectedHash = await fetchExpectedChecksum(version, assetName);
+    if (!expectedHash) {
+      console.warn(
+        `[po-po-code] Could not retrieve checksums for ast-grep ${version}. Proceeding without verification.`,
+      );
+    }
+
     const response = await fetch(downloadUrl, { redirect: 'follow' });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const archivePath = join(cacheDir, assetName);
     const arrayBuffer = await response.arrayBuffer();
+
+    // Verify integrity before writing to disk.
+    if (expectedHash) {
+      const actualHash = sha256Hex(arrayBuffer);
+      if (actualHash !== expectedHash) {
+        throw new Error(
+          `[po-po-code] SHA-256 mismatch for ${assetName}: expected ${expectedHash}, got ${actualHash}. Aborting installation.`,
+        );
+      }
+    }
+
+    const archivePath = join(cacheDir, assetName);
     await Bun.write(archivePath, arrayBuffer);
 
     await extractZip(archivePath, cacheDir);

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import {
   type PluginInput,
+  type ToolContext,
   type ToolDefinition,
   tool,
 } from '@opencode-ai/plugin';
@@ -62,15 +63,7 @@ Returns a monitor_id immediately. The monitor runs detached in the background.`,
         ),
     },
 
-    async execute(args, toolContext) {
-      if (
-        !toolContext ||
-        typeof toolContext !== 'object' ||
-        !('sessionID' in toolContext)
-      ) {
-        throw new Error('Invalid toolContext: missing sessionID');
-      }
-
+    async execute(args, toolContext: ToolContext) {
       const script = String(args.script);
       const triggerCondition = String(args.trigger_condition);
       const eventName = String(args.event_name);
@@ -78,7 +71,19 @@ Returns a monitor_id immediately. The monitor runs detached in the background.`,
         typeof args.timeout_ms === 'number'
           ? args.timeout_ms
           : DEFAULT_TIMEOUT_MS;
-      const parentSessionId = (toolContext as { sessionID: string }).sessionID;
+      const parentSessionId = toolContext.sessionID;
+
+      // Require explicit user approval before spawning any shell process.
+      await toolContext.ask({
+        permission: 'create_monitor',
+        patterns: [script],
+        always: [],
+        metadata: {
+          script,
+          event_name: eventName,
+          trigger_condition: triggerCondition,
+        },
+      });
 
       const monitorId = `mon_${Math.random().toString(36).substring(2, 10)}`;
 

@@ -19,6 +19,64 @@ import type {
   ResolvedServer,
 } from './types';
 
+/**
+ * Build a filtered environment for LSP subprocesses.
+ * Passes only env vars that language servers need, preventing API keys and
+ * tokens from leaking to third-party binaries via process.env inheritance.
+ */
+function buildLspEnvironment(
+  serverEnv?: Record<string, string>,
+): Record<string, string> {
+  // Allowlist of env var names and prefixes safe to pass to LSP servers.
+  // Language servers need PATH/HOME, language toolchain vars, and locale;
+  // they do not need application API keys or tokens.
+  const SAFE_PREFIXES = [
+    'PATH',
+    'HOME',
+    'USER',
+    'LOGNAME',
+    'SHELL',
+    'TERM',
+    'TMPDIR',
+    'TEMP',
+    'TMP',
+    'LANG',
+    'LC_',
+    'LOCALAPPDATA',
+    'APPDATA',
+    'USERPROFILE',
+    'SYSTEMROOT',
+    'WINDIR',
+    'COMSPEC',
+    'NODE_',
+    'NPM_',
+    'NVM_',
+    'BUN_',
+    'DENO_',
+    'GO',
+    'JAVA_',
+    'PYTHON',
+    'VIRTUAL_ENV',
+    'CONDA_',
+    'RUST_',
+    'CARGO_',
+    'XDG_',
+  ];
+
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      value !== undefined &&
+      SAFE_PREFIXES.some((prefix) => key === prefix || key.startsWith(prefix))
+    ) {
+      filtered[key] = value;
+    }
+  }
+
+  // Server-specific env overrides are applied last (explicitly configured).
+  return { ...filtered, ...(serverEnv ?? {}) };
+}
+
 const START_TIMEOUT_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 const OPEN_FILE_DELAY_MS = 250;
@@ -359,10 +417,7 @@ export class LSPClient {
       stdout: 'pipe',
       stderr: 'pipe',
       cwd: this.root,
-      env: {
-        ...process.env,
-        ...this.server.env,
-      },
+      env: buildLspEnvironment(this.server.env),
     });
 
     if (!this.proc) {
