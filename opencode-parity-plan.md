@@ -63,22 +63,28 @@ This updated architecture pivots to:
 
 # Part 3: Forward Roadmap
 
-## Phase A: Domain Agents & Context Firewalls (High Priority)
-- [ ] Create `@browser` as a new agent in `src/agents/`, rename `@fixer` -> `@ops`, and update `@designer` to be the exclusive owner of the `impeccable` design skill.
-- [ ] Update `constants.ts`, `SUBAGENT_NAMES`, `DEFAULT_MODELS`, etc. for all three agent changes.
-- [ ] Remove old `designer`/`fixer` keys from `SUBAGENT_NAMES`, `DEFAULT_MODELS`, `SUBAGENT_DELEGATION_RULES`, `ORCHESTRATABLE_AGENTS`, `agent-mcps.ts`, schema, tests, and orchestrator prompt. These are **in-place replacements**, not additions.
-- [ ] Rewrite Orchestrator prompt to enforce the "Context Firewall" rule: "NEVER consume raw screenshots or heavy logs yourself. Delegate to @browser or @explorer to read them and return a dense text summary."
-- [ ] Keep `@explorer`, `@librarian`, `@oracle`, and `@council` unchanged — they already have clear, non-overlapping roles.
+## Phase A: Domain Agents & Context Firewalls ✅ Complete
+- [x] Created `@browser` agent (`src/agents/browser.ts`) with exclusive `chrome-devtools` MCP access.
+- [x] Renamed `@fixer` → `@ops` (`src/agents/ops.ts`) for builds, logs, bash, and monitoring.
+- [x] Repurposed `@designer` as the exclusive owner of the `impeccable` design skill suite.
+- [x] Merged `@librarian` into `@explorer` (Context7, grep.app access moved to explorer).
+- [x] Updated `constants.ts` (`SUBAGENT_NAMES`, `DEFAULT_MODELS`, `ORCHESTRATABLE_AGENTS`, `SUBAGENT_DELEGATION_RULES`), `agent-mcps.ts`, schema, tests, and orchestrator prompt.
+- [x] Removed old `fixer`/`librarian` agent files and all references.
+- [x] Orchestrator prompt enforces Context Firewall: "NEVER consume raw screenshots or heavy logs yourself."
+- [x] Orchestrator MCP default set to `[]` (strict firewall — no MCPs leak to the Orchestrator).
 
-## Phase B: The Advisor Pattern (High Priority)
-- [ ] Deprecate `src/tools/background.ts` -> Create `src/tools/delegate.ts`.
-- [ ] Implement `delegate_task` schema: `description`, `prompt`, `agent`, and `run_in_background`.
-- [ ] Implement synchronous execution logic for `run_in_background: false` (Advisor mode) using `extractSessionResult`.
+## Phase B: The Advisor Pattern ✅ Complete
+- [x] Created `src/tools/delegate.ts` with `delegate_task` tool.
+- [x] Implemented `delegate_task` schema: `description`, `prompt`, `agent`, and `run_in_background`.
+- [x] Synchronous execution for `run_in_background: false` (Advisor mode) using `extractSessionResult`.
+- [x] Deleted `src/tools/background.ts` — fully superseded by `delegate.ts`.
+- [x] Orchestrator prompt documents `delegate_task` usage (Advisor vs. background mode).
 
-## Phase C: The Monitor Tool (Medium Priority)
-- [ ] Create `src/tools/monitor.ts`.
-- [ ] Schema: `script` (bash command), `trigger_condition` (stdout regex), `event_name`.
-- [ ] Spawns a detached Node `child_process`. On match, injects `<system-reminder> MONITOR ALERT: [event_name] ... </system-reminder>` into the active session via the OpenCode SDK.
+## Phase C: The Monitor Tool ✅ Complete
+- [x] Created `src/tools/monitor.ts` with `create_monitor` tool.
+- [x] Schema: `script` (bash command), `trigger_condition` (stdout regex), `event_name`.
+- [x] Spawns a detached Node `child_process`. On match, injects `<system-reminder> MONITOR ALERT: [event_name] ... </system-reminder>` into the active session via the OpenCode SDK.
+- [x] Orchestrator prompt documents `create_monitor` usage (event-driven wakeups, no polling loops).
 
 ## Phase D: Standardizing System Reminders & Caching (Medium Priority)
 - [ ] Update hooks (`project-context`, `post-edit-nudge`) to use `<system-reminder>`.

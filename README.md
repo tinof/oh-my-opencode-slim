@@ -3,7 +3,7 @@
   <p><b>Advanced Multi-Agent Orchestration for OpenCode <i>(Claude Code Edition)</i></b></p>
   <p><i>"Po po!" (Greek: Πω πω!) — An expression of astonishment or surprise.</i></p>
   <p>A highly specialized fork of <a href="https://github.com/alvinunreal/oh-my-opencode-slim">oh-my-opencode-slim</a>, reverse-engineering the internal architecture of Anthropic's Claude Code CLI to solve LLM context flooding.</p>
-  <p><b>Status:</b> <i>Alpha — architecture and roadmap defined; Claude Code parity work is in progress.</i></p>
+  <p><b>Status:</b> <i>Alpha — core architecture (context firewalls, advisor pattern, monitor tool) implemented. Phases D–E remaining.</i></p>
   <p><small>Published npm package: <code>po-po-code</code></small></p>
 </div>
 
@@ -18,14 +18,14 @@ If you are using a brilliant reasoning model like **Codex 5.3** as your Orchestr
 
 ### ✨ Core Architectural Upgrades
 
-🛡️ **Context Firewalls (Domain Agents)** — *Roadmap (see [parity plan](opencode-parity-plan.md), Phase A).*
-Heavy MCPs stay off the Orchestrator. Instead of giving Codex the `chrome-devtools` MCP directly, a dedicated domain agent (today **`@designer`**, target rename **`@browser`**) runs on a large-context model (e.g. Gemini 3.1 Pro), absorbs visual/DOM noise internally, and returns only a dense text summary to the Orchestrator.
+🛡️ **Context Firewalls (Domain Agents)** — *Implemented (Phase A).*
+Heavy MCPs stay off the Orchestrator. Instead of giving Codex the `chrome-devtools` MCP directly, a dedicated **`@browser`** agent runs on a large-context model (Gemini 3.1 Pro), absorbs visual/DOM noise internally, and returns only a dense text summary to the Orchestrator. The Orchestrator's MCP list defaults to `[]` — strict isolation by design.
 
-🤝 **The Advisor Pattern (Synchronous Delegation)** — *Roadmap (Phase B).*
-Replace awkward async-only delegation with **Advisor**-style calls: the Orchestrator delegates to a sub-agent and, when `run_in_background` is false, receives the result inline without leaving the conversational loop. Today, background tasks exist; unified `delegate_task` with sync mode is planned.
+🤝 **The Advisor Pattern (Synchronous Delegation)** — *Implemented (Phase B).*
+The unified `delegate_task` tool replaces the old async-only background tasks. The Orchestrator delegates to a sub-agent and, when `run_in_background` is false (Advisor mode), receives the result inline without leaving the conversational loop. Set `run_in_background: true` for long-running tasks like builds.
 
-👀 **The Monitor Tool (Event-Driven Wakeups)** — *Roadmap (Phase C).*
-Avoid token-heavy polling loops. The Monitor tool will let the Orchestrator attach a detached script (e.g. `tail -f | grep 'Error'`); on match, OpenCode injects a `<system-reminder>` to wake the Orchestrator.
+👀 **The Monitor Tool (Event-Driven Wakeups)** — *Implemented (Phase C).*
+No more token-heavy polling loops. The `create_monitor` tool lets the Orchestrator attach a detached script (e.g. `tail -f | grep 'Error'`); on match, OpenCode injects a `<system-reminder>` to wake the Orchestrator.
 
 ---
 
@@ -109,31 +109,35 @@ To override individual agents without changing presets, add entries under `"agen
 
 Detailed tasks live in [opencode-parity-plan.md](opencode-parity-plan.md). Summary:
 
-| Phase | Focus | Notes |
+| Phase | Focus | Status |
 | :--- | :--- | :--- |
-| **A** | Domain agents & context firewalls | Rename `designer`→`browser`, `fixer`→`ops`; orchestrator prompt firewall rules. |
-| **B** | Advisor pattern | `delegate_task` with `run_in_background`; sync delegation path. |
-| **C** | Monitor tool | Detached scripts, stdout triggers, `<system-reminder>` wakeups. |
-| **D** | System reminders & caching | `SYSTEM_PROMPT_DYNAMIC_BOUNDARY`; hooks use `<system-reminder>` consistently. |
-| **E** | Memory & cost | Tiered `CLAUDE.md` hierarchy; cost visibility for large-context sub-agents. |
+| **A** | Domain agents & context firewalls | ✅ `@browser`, `@ops`, `@designer` roles; strict orchestrator MCP firewall. |
+| **B** | Advisor pattern | ✅ `delegate_task` with `run_in_background`; sync and async delegation. |
+| **C** | Monitor tool | ✅ `create_monitor` — detached scripts, stdout triggers, `<system-reminder>` wakeups. |
+| **D** | System reminders & caching | Planned — `SYSTEM_PROMPT_DYNAMIC_BOUNDARY`; hooks use `<system-reminder>` consistently. |
+| **E** | Memory & cost | Planned — tiered `CLAUDE.md` hierarchy; cost visibility for large-context sub-agents. |
 
 ---
 
-## 🛠️ Usage Examples (Target Flows)
-
-These illustrate the **intended** UX once Phases A–C land; behavior today follows the current tools and background-task model.
+## 🛠️ Usage Examples
 
 ### The Monitor Pattern
 
 > "Start the NextJS dev server. Monitor the output, and wake up to fix any TypeScript errors that appear in the logs."
 
-**Target:** the ops-path agent runs the dev server, attaches a Monitor to stdout, and wakes the Orchestrator when a trigger matches — without LLM polling loops.
+The Orchestrator delegates to `@ops` to run the dev server, then uses `create_monitor` to attach a background watcher on stdout. When a TypeScript error appears in the logs, a `<system-reminder>` wakes the Orchestrator — no polling loops, no wasted tokens.
 
 ### The Context Firewall Pattern
 
 > "Check why the login button isn't working on localhost:3000."
 
-**Target:** the Orchestrator delegates to the browser-path agent, which uses Chrome DevTools and returns a short text diagnosis (e.g. a CORS error) so the Orchestrator never ingests a multi-megabyte screenshot.
+The Orchestrator delegates to `@browser`, which uses Chrome DevTools to capture screenshots, inspect the DOM, and check network requests. It returns a short text diagnosis (e.g. "CORS error on `/api/auth`") so the Orchestrator never ingests a multi-megabyte screenshot.
+
+### The Advisor Pattern
+
+> "What's the current directory structure of src/agents?"
+
+The Orchestrator delegates to `@explorer` with `run_in_background: false` (Advisor mode). The explorer runs the lookup synchronously and returns the result inline — the Orchestrator continues its thought process without interruption.
 
 ---
 

@@ -11,9 +11,9 @@ Key roadmap phases (all checkboxes live in the parity plan):
 
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
-| **A** | Domain agent renames (`designer`→`browser`, `fixer`→`ops`) + context firewall rules | Not started |
-| **B** | Advisor pattern (`delegate_task` with sync mode) | Not started |
-| **C** | Monitor tool (detached scripts, `<system-reminder>` wakeups) | Not started |
+| **A** | Domain agent renames (`designer`→`browser`, `fixer`→`ops`) + context firewall rules | ✅ Complete |
+| **B** | Advisor pattern (`delegate_task` with sync mode) | ✅ Complete |
+| **C** | Monitor tool (detached scripts, `<system-reminder>` wakeups) | ✅ Complete |
 | **D** | Standardize `<system-reminder>` injection + prompt caching boundaries | Not started |
 | **E** | Hierarchical memory + sub-agent cost tracking | Not started |
 
@@ -43,23 +43,17 @@ bun run dev         # build then launch opencode
 
 **Agent system** (`src/agents/`)
 
-Current agents (pre-parity):
-
-| Agent | File | Role | Parity target |
-| :--- | :--- | :--- | :--- |
-| `orchestrator` | `orchestrator.ts` | Delegates to sub-agents; answers simple queries directly | *(unchanged)* |
-| `designer` | `designer.ts` | UI/frontend specialist | Rename → `browser` (visual QA + chrome-devtools firewall) |
-| `fixer` | `fixer.ts` | Bug-fix specialist | Rename → `ops` (builds, logs, bash, monitor) |
-| `explorer` | `explorer.ts` | Codebase navigation (Serena LSP, Morph semantic search) | *(unchanged)* |
-| `librarian` | `librarian.ts` | Docs/web research (Context7, Linkup, grep.app) | *(unchanged)* |
-| `oracle` | `oracle.ts` | Deep reasoning for hard bugs and architecture | *(unchanged)* |
-| `council`* | council subsystem | Multi-agent voting (councillor, council-master) | *(unchanged)* |
+| Agent | File | Role |
+| :--- | :--- | :--- |
+| `orchestrator` | `orchestrator.ts` | Delegates to sub-agents; answers simple queries directly. No MCPs (context firewall). |
+| `browser` | `browser.ts` | Visual QA + headless browser automation. Holds `chrome-devtools` MCP behind firewall. |
+| `ops` | `ops.ts` | Builds, logs, bash, server ops. Execution-focused, no research. |
+| `designer` | `designer.ts` | UI/UX specialist. Exclusive owner of `impeccable` design skill suite. |
+| `explorer` | `explorer.ts` | Codebase navigation (Serena LSP, Morph semantic search, Context7, grep.app). |
+| `oracle` | `oracle.ts` | Deep reasoning for hard bugs, architecture, and code review. |
+| `council`* | council subsystem | Multi-agent voting (councillor, council-master). |
 
 \* Council agents (`council`, `councillor`, `council-master`) are internal — only `CouncilManager` spawns them.
-
-Phase A renames are **in-place replacements**: the old `designer`/`fixer` keys, prompts,
-constants, delegation rules, and config schema entries are removed when `browser`/`ops`
-are created. No parallel existence.
 
 - Orchestrator delegates to subagents; fixer/explorer/librarian/oracle are leaf nodes
 - Default models defined in `src/config/constants.ts` → `DEFAULT_MODELS`
@@ -70,11 +64,12 @@ are created. No parallel existence.
 - Layers: user → project → preset
 - `PluginConfig`: `agents`, `tmux`, `disabled_mcps`, `background`, `presets`
 - Agent model overrides live in `src/config/constants.ts`
-- Config file: `.opencode/oh-my-opencode-slim.jsonc` (project) or `~/.config/opencode/oh-my-opencode-slim.jsonc` (user)
+- Config file: `.opencode/po-po-code.jsonc` (project) or `~/.config/opencode/po-po-code.jsonc` (user)
 
 **Tools** (`src/tools/`)
-- grep, AST-grep, LSP (diagnostics, references, rename), background task orchestration
-- Parity adds: `delegate.ts` (Phase B), `monitor.ts` (Phase C)
+- grep, AST-grep, LSP (diagnostics, references, rename)
+- `delegate.ts` — unified `delegate_task` tool (Advisor mode + background delegation)
+- `monitor.ts` — `create_monitor` tool (event-driven wakeups via `<system-reminder>`)
 
 **MCP** (`src/mcp/`)
 - Built-in: linkup, context7, grep.app
@@ -85,8 +80,8 @@ are created. No parallel existence.
 - Parity adds: `<system-reminder>` standardization (Phase D)
 
 **Background tasks** (`src/background/`)
-- Fire-and-forget sessions with optional tmux pane visualization
-- Phase B deprecates `src/tools/background.ts` in favor of `src/tools/delegate.ts`
+- `BackgroundTaskManager` manages session lifecycle for `delegate_task` (both sync and async)
+- Optional tmux pane visualization for background sessions
 
 ## Extension Patterns
 
@@ -97,14 +92,11 @@ are created. No parallel existence.
 - New MCP → `src/mcp/` + `createBuiltinMcps` + `src/config/agent-mcps.ts`
 - New hook → `src/hooks/` + export from `src/hooks/index.ts` + register in `src/index.ts`
 
-## Parity Implementation Checklist (Quick Reference)
+## Parity Implementation Status
 
-When working on any parity phase, consult [opencode-parity-plan.md](opencode-parity-plan.md) for the full task list. Key files touched by each phase:
+Consult [opencode-parity-plan.md](opencode-parity-plan.md) for the full task list. Remaining phases:
 
 | Phase | Primary files |
 | :--- | :--- |
-| A (agent renames) | `src/agents/{designer,fixer}.ts`, `src/config/constants.ts`, `src/config/agent-mcps.ts`, `src/agents/orchestrator.ts` (prompt), `oh-my-opencode-slim.schema.json`, tests |
-| B (delegate tool) | `src/tools/background.ts` → `src/tools/delegate.ts`, `src/tools/index.ts`, `src/index.ts` |
-| C (monitor tool) | `src/tools/monitor.ts` (new), `src/tools/index.ts`, `src/index.ts` |
 | D (system reminders) | `src/hooks/`, agent prompts |
 | E (memory + cost) | `src/hooks/`, config layer |
