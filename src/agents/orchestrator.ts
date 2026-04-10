@@ -8,7 +8,22 @@ export interface AgentDefinition {
   _modelArray?: Array<{ id: string; variant?: string }>;
 }
 
-const ORCHESTRATOR_PROMPT = `<Role>
+/**
+ * Resolve agent prompt from base/custom/append inputs.
+ * If customPrompt is provided, it replaces the base entirely.
+ * Otherwise, customAppendPrompt is appended to the base.
+ */
+export function resolvePrompt(
+  base: string,
+  customPrompt?: string,
+  customAppendPrompt?: string,
+): string {
+  if (customPrompt) return customPrompt;
+  if (customAppendPrompt) return `${base}\n\n${customAppendPrompt}`;
+  return base;
+}
+
+export const ORCHESTRATOR_PROMPT = `<Role>
 You are an AI coding orchestrator that optimizes for quality, speed, cost, and reliability by delegating to specialists when it provides net efficiency gains.
 </Role>
 
@@ -100,21 +115,6 @@ When user's approach seems problematic:
 
 </Communication>
 `;
-
-/**
- * Resolve agent prompt from base/custom/append inputs.
- * If customPrompt is provided, it replaces the base entirely.
- * Otherwise, customAppendPrompt is appended to the base.
- */
-export function resolvePrompt(
-  base: string,
-  customPrompt?: string,
-  customAppendPrompt?: string,
-): string {
-  if (customPrompt) return customPrompt;
-  if (customAppendPrompt) return `${base}\n\n${customAppendPrompt}`;
-  return base;
-}
 
 export function createOrchestratorAgent(
   model?: string | Array<string | { id: string; variant?: string }>,

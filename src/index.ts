@@ -122,7 +122,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       )
     : {};
 
-  const mcps = createBuiltinMcps(config.disabled_mcps, config.websearch);
+  const mcps = createBuiltinMcps(config.disabled_mcps);
   const webfetch = createWebfetchTool(ctx);
 
   // Initialize MultiplexerSessionManager to handle OpenCode's built-in Task tool sessions
@@ -166,6 +166,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     runtimeChains,
     config.fallback?.enabled !== false && Object.keys(runtimeChains).length > 0,
   );
+
+  // Track session → agent mapping for serve-mode system prompt injection
+  const sessionAgentMap = new Map<string, string>();
 
   // Initialize todo-continuation hook (opt-in auto-continue for incomplete todos)
   const todoContinuationHook = createTodoContinuationHook(ctx, {
@@ -452,6 +455,40 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     },
 
     'chat.headers': chatHeadersHook['chat.headers'],
+
+    // Track which agent each session uses (needed for serve-mode prompt injection)
+    'chat.message': async (input: { sessionID: string; agent?: string }) => {
+      if (input.agent) {
+        sessionAgentMap.set(input.sessionID, input.agent);
+      }
+    },
+
+    // Inject orchestrator system prompt for serve-mode sessions.
+    // In serve mode, the agent's prompt field may be absent from the agents registry
+    // (built before plugin config hooks run). This hook injects it at LLM call time.
+    'experimental.chat.system.transform': async (
+      input: { sessionID?: string },
+      output: { system: string[] },
+    ): Promise<void> => {
+      const agentName = input.sessionID
+        ? sessionAgentMap.get(input.sessionID)
+        : undefined;
+      if (agentName === 'orchestrator') {
+        const alreadyInjected = output.system.some(
+          (s) =>
+            typeof s === 'string' &&
+            s.includes('<Role>') &&
+            s.includes('orchestrator'),
+        );
+        if (!alreadyInjected) {
+          // Prepend the orchestrator prompt to the system array
+          const { ORCHESTRATOR_PROMPT } = await import('./agents/orchestrator');
+          output.system[0] =
+            ORCHESTRATOR_PROMPT +
+            (output.system[0] ? '\n\n' + output.system[0] : '');
+        }
+      }
+    },
 
     // Inject project context and filter available skills before sending to API (doesn't show in UI)
     'experimental.chat.messages.transform': async (
