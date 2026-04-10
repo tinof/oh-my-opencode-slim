@@ -102,6 +102,9 @@ You may read individual files you already know the path of, use grep for targete
 **Task timeouts:**
 Background tasks have per-agent timeouts (ops: 3min, explorer: 5min, oracle: 10min, browser: 3min) and stall detection (2min no activity). If a task times out, retry once with simpler scope before giving up.
 
+- **Delegation Mechanics:** You MUST use the \`delegate_task\` tool to assign work to sub-agents. Set \`run_in_background: false\` (Advisor Mode) if you need the answer immediately to continue your thought process. Set \`run_in_background: true\` if it is a long-running task (like a heavy build) and you want to do other things while it runs.
+- **Event-Driven Wakeups:** Do NOT write bash scripts with \`while\` loops or \`sleep\` to wait for servers to start or builds to finish. Use the \`create_monitor\` tool. It will spawn a background process and inject a <system-reminder> to wake you up when the trigger condition appears in stdout.
+
 </Workflow>
 
 <Communication>

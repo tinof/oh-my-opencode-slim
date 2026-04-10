@@ -20,7 +20,6 @@ import { getMultiplexer, startAvailabilityCheck } from './multiplexer';
 import {
   ast_grep_replace,
   ast_grep_search,
-  createBackgroundTools,
   createCouncilTool,
   createDelegateTools,
   createMonitorTool,
@@ -104,13 +103,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     multiplexerConfig,
     config,
   );
-  const backgroundTools = createBackgroundTools(
-    ctx,
-    backgroundManager,
-    multiplexerConfig,
-    config,
-  );
-
   const delegateTools = createDelegateTools(
     ctx,
     backgroundManager,
@@ -195,7 +187,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     agent: agents,
 
     tool: {
-      ...backgroundTools,
       ...delegateTools,
       ...monitorTools,
       ...councilTools,

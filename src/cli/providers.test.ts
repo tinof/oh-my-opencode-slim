@@ -93,8 +93,8 @@ describe('providers', () => {
     });
 
     const agents = (config.presets as any).openai;
-    // Orchestrator should always have '*'
-    expect(agents.orchestrator.skills).toEqual(['*']);
+    // Orchestrator should exclude impeccable design skills
+    expect(agents.orchestrator.skills).toEqual(['!impeccable', '*']);
 
     // Browser should have 'agent-browser'
     expect(agents.browser.skills).toContain('agent-browser');
@@ -129,7 +129,7 @@ describe('providers', () => {
     });
 
     const agents = (config.presets as any).openai;
-    expect(agents.orchestrator.mcps).toContain('*');
+    expect(agents.orchestrator.mcps).toEqual([]);
     expect(agents.explorer.mcps).toContain('context7');
     expect(agents.explorer.mcps).toContain('grep_app');
     expect(agents.browser.mcps).toContain('chrome-devtools');

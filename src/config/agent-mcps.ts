@@ -8,7 +8,7 @@ import {
 /** Default MCPs per agent - "*" means all MCPs, "!item" excludes specific MCPs */
 
 export const DEFAULT_AGENT_MCPS: Record<AgentName, string[]> = {
-  orchestrator: ['*'],
+  orchestrator: [],
   browser: ['chrome-devtools'],
   ops: ['morph-mcp'],
   designer: [],

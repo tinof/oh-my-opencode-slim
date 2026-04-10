@@ -74,7 +74,7 @@ export function generateLiteConfig(
     const isOrchestrator = agentName === 'orchestrator';
 
     const skills = isOrchestrator
-      ? ['*']
+      ? ['!impeccable', '*']
       : RECOMMENDED_SKILLS.filter(
           (s) =>
             s.allowedAgents.includes('*') ||
