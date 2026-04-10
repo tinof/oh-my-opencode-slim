@@ -1,11 +1,11 @@
 {
-  "name": "oh-my-opencode-slim",
+  "name": "po-po-code",
   "version": "0.9.5",
-  "description": "Lightweight agent orchestration plugin for OpenCode - a slimmed-down fork of oh-my-opencode",
+  "description": "Agent orchestration plugin for OpenCode with context firewalls and advisor delegation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "oh-my-opencode-slim": "./dist/cli/index.js"
+    "po-po-code": "./dist/cli/index.js"
   },
   "type": "module",
   "license": "MIT",
@@ -22,16 +22,16 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/alvinunreal/oh-my-opencode-slim"
+    "url": "https://github.com/konstantinosfotiou/oh-my-opencode-slim"
   },
   "bugs": {
-    "url": "https://github.com/alvinunreal/oh-my-opencode-slim/issues"
+    "url": "https://github.com/konstantinosfotiou/oh-my-opencode-slim/issues"
   },
-  "homepage": "https://github.com/alvinunreal/oh-my-opencode-slim#readme",
+  "homepage": "https://github.com/konstantinosfotiou/oh-my-opencode-slim#readme",
   "files": [
     "dist",
     "src/skills",
-    "oh-my-opencode-slim.schema.json",
+    "po-po-code.schema.json",
     "README.md",
     "LICENSE"
   ],

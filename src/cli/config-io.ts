@@ -21,7 +21,7 @@ import type {
   OpenCodeConfig,
 } from './types';
 
-const PACKAGE_NAME = 'oh-my-opencode-slim';
+const PACKAGE_NAME = 'po-po-code';
 
 function isPluginEntry(entry: string): boolean {
   return (

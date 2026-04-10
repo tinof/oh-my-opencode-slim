@@ -9,11 +9,30 @@ describe('providers', () => {
     expect(keys.sort()).toEqual(['copilot', 'kimi', 'openai', 'zai-plan']);
   });
 
-  test('generateLiteConfig always generates openai preset', () => {
+  test('generateLiteConfig uses the requested preset', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installSkills: false,
       installCustomSkills: false,
+      preset: 'copilot',
+      reset: false,
+    });
+
+    expect(config.preset).toBe('copilot');
+    const presets = config.presets as any;
+    expect(presets.openai).toBeDefined();
+    expect(presets.copilot).toBeDefined();
+    expect(presets.kimi).toBeDefined();
+    expect(presets['zai-plan']).toBeDefined();
+  });
+
+  test('generateLiteConfig generates openai preset correctly', () => {
+    const config = generateLiteConfig({
+      hasTmux: false,
+      installSkills: false,
+      installCustomSkills: false,
+      preset: 'openai',
+      reset: false,
     });
 
     expect(config.preset).toBe('openai');
@@ -30,6 +49,8 @@ describe('providers', () => {
       hasTmux: false,
       installSkills: false,
       installCustomSkills: false,
+      preset: 'openai',
+      reset: false,
     });
 
     const agents = (config.presets as any).openai;
@@ -53,6 +74,8 @@ describe('providers', () => {
       hasTmux: true,
       installSkills: false,
       installCustomSkills: false,
+      preset: 'copilot',
+      reset: false,
     });
 
     expect(config.tmux).toBeDefined();
@@ -65,6 +88,8 @@ describe('providers', () => {
       hasTmux: false,
       installSkills: true,
       installCustomSkills: false,
+      preset: 'openai',
+      reset: false,
     });
 
     const agents = (config.presets as any).openai;
@@ -83,6 +108,8 @@ describe('providers', () => {
       hasTmux: false,
       installSkills: false,
       installCustomSkills: false,
+      preset: 'openai',
+      reset: false,
     });
 
     const agents = (config.presets as any).openai;
@@ -97,6 +124,8 @@ describe('providers', () => {
       hasTmux: false,
       installSkills: false,
       installCustomSkills: false,
+      preset: 'openai',
+      reset: false,
     });
 
     const agents = (config.presets as any).openai;

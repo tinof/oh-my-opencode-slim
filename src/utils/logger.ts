@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 const logFile = path.join(
   process.env.HOME || os.tmpdir(),
-  '.local/share/opencode/oh-my-opencode-slim.log',
+  '.local/share/opencode/po-po-code.log',
 );
 
 // Ensure directory exists

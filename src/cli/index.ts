@@ -1,6 +1,12 @@
 #!/usr/bin/env bun
 import { install } from './install';
-import type { BooleanArg, InstallArgs } from './types';
+import {
+  type BooleanArg,
+  DEFAULT_PRESET,
+  type InstallArgs,
+  type PresetName,
+  VALID_PRESETS,
+} from './types';
 
 function parseArgs(args: string[]): InstallArgs {
   const result: InstallArgs = {
@@ -14,6 +20,16 @@ function parseArgs(args: string[]): InstallArgs {
       result.tmux = arg.split('=')[1] as BooleanArg;
     } else if (arg.startsWith('--skills=')) {
       result.skills = arg.split('=')[1] as BooleanArg;
+    } else if (arg.startsWith('--preset=')) {
+      const value = arg.split('=')[1] as string;
+      if (VALID_PRESETS.includes(value as PresetName)) {
+        result.preset = value as PresetName;
+      } else {
+        console.error(
+          `Invalid preset: "${value}". Valid presets: ${VALID_PRESETS.join(', ')}`,
+        );
+        process.exit(1);
+      }
     } else if (arg === '--dry-run') {
       result.dryRun = true;
     } else if (arg === '--reset') {
@@ -28,12 +44,17 @@ function parseArgs(args: string[]): InstallArgs {
 }
 
 function printHelp(): void {
-  console.log(`
-oh-my-opencode-slim installer
+  const presetList = VALID_PRESETS.map((p) =>
+    p === DEFAULT_PRESET ? `${p} (default)` : p,
+  ).join(', ');
 
-Usage: bunx oh-my-opencode-slim install [OPTIONS]
+  console.log(`
+po-po-code installer
+
+Usage: bunx po-po-code install [OPTIONS]
 
 Options:
+  --preset=PRESET        Provider preset: ${presetList}
   --tmux=yes|no          Enable tmux integration (yes/no)
   --skills=yes|no        Install recommended skills (yes/no)
   --no-tui               Non-interactive mode
@@ -41,13 +62,11 @@ Options:
   --reset                Force overwrite of existing configuration
   -h, --help             Show this help message
 
-The installer generates an OpenAI configuration by default.
-For alternative providers, see docs/provider-configurations.md.
-
 Examples:
-  bunx oh-my-opencode-slim install
-  bunx oh-my-opencode-slim install --no-tui --tmux=no --skills=yes
-  bunx oh-my-opencode-slim install --reset
+  bunx po-po-code install
+  bunx po-po-code install --preset=copilot
+  bunx po-po-code install --preset=openai --tmux=yes --skills=yes
+  bunx po-po-code install --reset
 `);
 }
 

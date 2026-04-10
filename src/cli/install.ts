@@ -12,7 +12,12 @@ import {
 import { CUSTOM_SKILLS, installCustomSkill } from './custom-skills';
 import { getExistingLiteConfigPath } from './paths';
 import { installSkill, RECOMMENDED_SKILLS } from './skills';
-import type { ConfigMergeResult, InstallArgs, InstallConfig } from './types';
+import {
+  type ConfigMergeResult,
+  DEFAULT_PRESET,
+  type InstallArgs,
+  type InstallConfig,
+} from './types';
 
 // Colors
 const GREEN = '\x1b[32m';
@@ -35,9 +40,7 @@ const SYMBOLS = {
 
 function printHeader(isUpdate: boolean): void {
   console.log();
-  console.log(
-    `${BOLD}oh-my-opencode-slim ${isUpdate ? 'Update' : 'Install'}${RESET}`,
-  );
+  console.log(`${BOLD}po-po-code ${isUpdate ? 'Update' : 'Install'}${RESET}`);
   console.log('='.repeat(30));
   console.log();
 }
@@ -98,16 +101,25 @@ function handleStepResult(
   return true;
 }
 
-function formatConfigSummary(): string {
+const PRESET_LABELS: Record<string, string> = {
+  copilot: 'GitHub Copilot',
+  openai: 'OpenAI',
+  kimi: 'Kimi',
+  'zai-plan': 'ZAI Coding Plan',
+};
+
+function formatConfigSummary(activePreset: string): string {
   const lines: string[] = [];
   lines.push(`${BOLD}Configuration Summary${RESET}`);
   lines.push('');
-  lines.push(`  ${BOLD}Preset:${RESET} ${BLUE}openai${RESET}`);
-  lines.push(`  ${SYMBOLS.check} OpenAI (default)`);
-  const seeDocs = 'see docs/provider-configurations.md';
-  lines.push(`  ${DIM}○ Kimi — ${seeDocs}${RESET}`);
-  lines.push(`  ${DIM}○ GitHub Copilot — ${seeDocs}${RESET}`);
-  lines.push(`  ${DIM}○ ZAI Coding Plan — ${seeDocs}${RESET}`);
+  lines.push(`  ${BOLD}Preset:${RESET} ${BLUE}${activePreset}${RESET}`);
+  for (const [key, label] of Object.entries(PRESET_LABELS)) {
+    if (key === activePreset) {
+      lines.push(`  ${SYMBOLS.check} ${label} (active)`);
+    } else {
+      lines.push(`  ${DIM}○ ${label} — --preset=${key}${RESET}`);
+    }
+  }
   return lines.join('\n');
 }
 
@@ -130,7 +142,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
     const { ok } = await checkOpenCodeInstalled();
     if (!ok) return 1;
   }
-  printStep(step++, totalSteps, 'Adding oh-my-opencode-slim plugin...');
+  printStep(step++, totalSteps, 'Adding po-po-code plugin...');
   if (config.dryRun) {
     printInfo('Dry run mode - skipping plugin installation');
   } else {
@@ -145,7 +157,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
     if (!handleStepResult(agentResult, 'Default agents disabled')) return 1;
   }
 
-  printStep(step++, totalSteps, 'Writing oh-my-opencode-slim configuration...');
+  printStep(step++, totalSteps, 'Writing po-po-code configuration...');
   if (config.dryRun) {
     const liteConfig = generateLiteConfig(config);
     printInfo('Dry run mode - configuration that would be written:');
@@ -227,7 +239,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   // Summary
   console.log();
-  console.log(formatConfigSummary());
+  console.log(formatConfigSummary(config.preset));
   console.log();
 
   const statusMsg = isUpdate
@@ -241,16 +253,12 @@ async function runInstall(config: InstallConfig): Promise<number> {
   console.log(`  1. Start OpenCode:`);
   console.log(`     ${BLUE}$ opencode${RESET}`);
   console.log();
-  const modelsInfo =
-    'Default configuration uses OpenAI models (gpt-5.4 / gpt-5.4-mini).';
-  console.log(`${BOLD}${modelsInfo}${RESET}`);
-  const altProviders =
-    'For alternative providers (Kimi, GitHub Copilot, ZAI Coding Plan)';
-  console.log(`${BOLD}${altProviders}, see:${RESET}`);
-  const docsUrl =
-    'https://github.com/alvinunreal/oh-my-opencode-slim/' +
-    'blob/master/docs/provider-configurations.md';
-  console.log(`  ${BLUE}${docsUrl}${RESET}`);
+  console.log(
+    `${BOLD}Active preset: ${BLUE}${config.preset}${RESET}${BOLD}.${RESET}`,
+  );
+  console.log(
+    `To switch presets, reinstall with ${BLUE}--preset=<name> --reset${RESET}`,
+  );
   console.log();
 
   return 0;
@@ -261,6 +269,7 @@ export async function install(args: InstallArgs): Promise<number> {
     hasTmux: args.tmux === 'yes',
     installSkills: args.skills === 'yes',
     installCustomSkills: args.skills === 'yes',
+    preset: args.preset ?? DEFAULT_PRESET,
     dryRun: args.dryRun,
     reset: args.reset ?? false,
   };

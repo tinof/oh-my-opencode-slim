@@ -5,7 +5,7 @@ import { invalidatePackage } from './cache';
 // Mock internal dependencies
 mock.module('./constants', () => ({
   CACHE_DIR: '/mock/cache',
-  PACKAGE_NAME: 'oh-my-opencode-slim',
+  PACKAGE_NAME: 'po-po-code',
 }));
 
 mock.module('../../shared/logger', () => ({
@@ -55,7 +55,7 @@ describe('auto-update-checker/cache', () => {
       readMock.mockReturnValue(
         JSON.stringify({
           dependencies: {
-            'oh-my-opencode-slim': '1.0.0',
+            'po-po-code': '1.0.0',
             'other-pkg': '1.0.0',
           },
         }),
@@ -66,7 +66,7 @@ describe('auto-update-checker/cache', () => {
       expect(result).toBe(true);
       const callArgs = writeMock.mock.calls[0];
       const savedJson = JSON.parse(callArgs[1]);
-      expect(savedJson.dependencies['oh-my-opencode-slim']).toBeUndefined();
+      expect(savedJson.dependencies['po-po-code']).toBeUndefined();
       expect(savedJson.dependencies['other-pkg']).toBe('1.0.0');
     });
   });

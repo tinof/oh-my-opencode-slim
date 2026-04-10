@@ -190,7 +190,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   });
 
   return {
-    name: 'oh-my-opencode-slim',
+    name: 'po-po-code',
 
     agent: agents,
 

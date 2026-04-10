@@ -4,7 +4,7 @@
   <p><i>"Po po!" (Greek: Πω πω!) — An expression of astonishment or surprise.</i></p>
   <p>A highly specialized fork of <a href="https://github.com/alvinunreal/oh-my-opencode-slim">oh-my-opencode-slim</a>, reverse-engineering the internal architecture of Anthropic's Claude Code CLI to solve LLM context flooding.</p>
   <p><b>Status:</b> <i>Alpha — architecture and roadmap defined; Claude Code parity work is in progress.</i></p>
-  <p><small>Published npm package: <code>oh-my-opencode-slim</code> (this README uses <b>Po-po-code</b> as the project name for this fork).</small></p>
+  <p><small>Published npm package: <code>po-po-code</code></small></p>
 </div>
 
 ---
@@ -29,17 +29,16 @@ Avoid token-heavy polling loops. The Monitor tool will let the Orchestrator atta
 
 ---
 
-## 🏛️ Agent Roles (Today vs Claude Code Parity)
+## 🏛️ Agent Roles
 
-The plugin ships **`orchestrator`**, **`designer`**, **`fixer`**, **`explorer`**, and **`oracle`**. The [parity plan](opencode-parity-plan.md) renames domain agents for clarity: **`designer` → `browser`**, **`fixer` → `ops`**. Until those renames land, configure and delegate using the **current** keys.
-
-| Current agent | Parity target | Ideal model (example) | Role & isolated MCPs |
-| :--- | :--- | :--- | :--- |
-| **@orchestrator** | *(unchanged)* | `Codex 5.3` | **The Brain.** Answers simple queries; delegates heavy work. *No heavy MCPs.* |
-| **@designer** | **@browser** | `Gemini 3.1 Pro` | **Visual / UI path.** *Target:* holds `chrome-devtools` behind a context firewall. |
-| **@fixer** | **@ops** | `Gemini 3 Flash` | **Execution / ops path.** *Target:* builds, logs, `bash`, `monitor`. |
-| **@explorer** | *(unchanged)* | `Gemini 3 Flash` | **Codebase scout.** *Holds `serena`, `morph-mcp`.* |
-| **@oracle** | *(unchanged)* | `Gemini 3.1 Pro` | **Deep reasoning** for hard bugs and architecture. |
+| Agent | Model (copilot preset) | Role & isolated MCPs |
+| :--- | :--- | :--- |
+| **@orchestrator** | `gpt-5.3-codex` | **The Brain.** Answers simple queries; delegates heavy work. *No heavy MCPs — pristine context.* |
+| **@browser** | `gemini-3.1-pro-preview` | **Visual / UI path.** Holds `chrome-devtools` behind a context firewall. |
+| **@ops** | `gemini-3-flash-preview` | **Execution / ops path.** Builds, logs, `bash`, `monitor`. |
+| **@explorer** | `gemini-3-flash-preview` | **Codebase scout.** Holds `serena`, `morph-mcp`. |
+| **@designer** | `gemini-3.1-pro-preview` | **UI/UX specialist.** Design frameworks and implementation. |
+| **@oracle** | `claude-opus-4.6` | **Deep reasoning** for hard bugs and architecture. |
 
 ---
 
@@ -48,50 +47,61 @@ The plugin ships **`orchestrator`**, **`designer`**, **`fixer`**, **`explorer`**
 ### Quick Start
 
 ```bash
-bunx oh-my-opencode-slim@latest install
+bunx po-po-code@latest install
 ```
 
-### Recommended configuration
+The installer defaults to the **copilot** preset (Codex orchestrator + Gemini sub-agents via GitHub Copilot). To use a different provider:
 
-Use the plugin config file (JSONC supported). Typical locations:
+```bash
+bunx po-po-code@latest install --preset=openai
+bunx po-po-code@latest install --preset=copilot
+bunx po-po-code@latest install --preset=kimi
+bunx po-po-code@latest install --preset=zai-plan
+```
 
-- **Project:** `.opencode/oh-my-opencode-slim.jsonc`
-- **User:** `~/.config/opencode/oh-my-opencode-slim.jsonc`
+### Configuration files
 
-See [docs/configuration.md](docs/configuration.md) for the full layering story.
+Config files (JSONC supported) are written to:
 
-To **prepare for** the Advisor pattern and context firewalls, mix providers so the Orchestrator stays lean while sub-agents use large-context models. Example (illustrative — adjust models to your OpenCode providers):
+- **User:** `~/.config/opencode/po-po-code.jsonc`
+- **Project:** `.opencode/po-po-code.jsonc`
+
+Project config overrides user config. See [docs/configuration.md](docs/configuration.md) for the full layering story.
+
+### Copilot preset (default)
+
+The `copilot` preset keeps the Orchestrator lean while sub-agents use large-context Gemini models for context firewalls:
 
 ```jsonc
 {
-  "disabled_mcps": ["websearch", "grep_app"],
+  "preset": "copilot",
   "agents": {
     "orchestrator": {
       "model": "github-copilot/gpt-5.3-codex",
-      "temperature": 0.7,
+      "temperature": 1,
       "variant": "high",
-      "mcps": [] // Keep orchestrator context pristine
+      "mcps": [] // Pristine context
     },
-    "designer": {
+    "browser": {
       "model": "google/gemini-3.1-pro-preview",
-      "temperature": 0.1,
-      "mcps": ["chrome-devtools"] // Context firewall (when wired to this agent)
+      "temperature": 1,
+      "mcps": ["chrome-devtools"] // Context firewall
     },
-    "fixer": {
+    "ops": {
       "model": "github-copilot/gemini-3-flash-preview",
-      "temperature": 0.1,
+      "temperature": 1,
       "mcps": []
     },
     "explorer": {
       "model": "github-copilot/gemini-3-flash-preview",
-      "temperature": 0.2,
+      "temperature": 1,
       "mcps": ["serena", "morph-mcp"]
     }
   }
 }
 ```
 
-When Phase A renames agents, swap `designer` / `fixer` keys to `browser` / `ops` in config to match the updated schema.
+To override individual agents without changing presets, add entries under `"agents"` — they merge on top of the active preset.
 
 ---
 

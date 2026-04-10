@@ -21,14 +21,32 @@ export const MODEL_MAPPINGS = {
     designer: { model: 'kimi-for-coding/k2p5', variant: 'medium' },
   },
   copilot: {
-    orchestrator: { model: 'github-copilot/claude-opus-4.6' },
-    oracle: { model: 'github-copilot/claude-opus-4.6', variant: 'high' },
-    browser: { model: 'github-copilot/grok-code-fast-1', variant: 'low' },
-    ops: { model: 'github-copilot/claude-sonnet-4.6', variant: 'low' },
-    explorer: { model: 'github-copilot/grok-code-fast-1', variant: 'low' },
+    orchestrator: {
+      model: 'github-copilot/gpt-5.3-codex',
+      temperature: 1,
+      variant: 'high',
+    },
+    oracle: {
+      model: 'github-copilot/gemini-3-flash-preview',
+      temperature: 1,
+      variant: 'high',
+    },
+    browser: {
+      model: 'google/gemini-3.1-pro-preview',
+      temperature: 1,
+    },
+    ops: {
+      model: 'github-copilot/gemini-3-flash-preview',
+      temperature: 1,
+    },
+    explorer: {
+      model: 'github-copilot/gemini-3-flash-preview',
+      temperature: 1,
+    },
     designer: {
       model: 'github-copilot/gemini-3.1-pro-preview',
-      variant: 'medium',
+      temperature: 1,
+      variant: 'high',
     },
   },
   'zai-plan': {
@@ -45,13 +63,13 @@ export function generateLiteConfig(
   installConfig: InstallConfig,
 ): Record<string, unknown> {
   const config: Record<string, unknown> = {
-    preset: 'openai',
+    preset: installConfig.preset,
     presets: {},
   };
 
   const createAgentConfig = (
     agentName: string,
-    modelInfo: { model: string; variant?: string },
+    modelInfo: { model: string; variant?: string; temperature?: number },
   ) => {
     const isOrchestrator = agentName === 'orchestrator';
 
@@ -70,6 +88,9 @@ export function generateLiteConfig(
     return {
       model: modelInfo.model,
       variant: modelInfo.variant,
+      ...(modelInfo.temperature !== undefined && {
+        temperature: modelInfo.temperature,
+      }),
       skills,
       mcps:
         DEFAULT_AGENT_MCPS[agentName as keyof typeof DEFAULT_AGENT_MCPS] ?? [],
@@ -86,8 +107,12 @@ export function generateLiteConfig(
     );
   };
 
-  // Always use OpenAI as default
-  (config.presets as Record<string, unknown>).openai = buildPreset('openai');
+  // Build all provider presets; OpenAI is the default active preset
+  const presets = config.presets as Record<string, unknown>;
+  presets.openai = buildPreset('openai');
+  presets.copilot = buildPreset('copilot');
+  presets.kimi = buildPreset('kimi');
+  presets['zai-plan'] = buildPreset('zai-plan');
 
   if (installConfig.hasTmux) {
     config.tmux = {

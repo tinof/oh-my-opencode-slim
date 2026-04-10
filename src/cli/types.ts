@@ -1,9 +1,21 @@
 export type BooleanArg = 'yes' | 'no';
 
+export type PresetName = 'openai' | 'copilot' | 'kimi' | 'zai-plan';
+
+export const VALID_PRESETS: PresetName[] = [
+  'openai',
+  'copilot',
+  'kimi',
+  'zai-plan',
+];
+
+export const DEFAULT_PRESET: PresetName = 'copilot';
+
 export interface InstallArgs {
   tui: boolean;
   tmux?: BooleanArg;
   skills?: BooleanArg;
+  preset?: PresetName;
   dryRun?: boolean;
   reset?: boolean;
 }
@@ -19,6 +31,7 @@ export interface InstallConfig {
   hasTmux: boolean;
   installSkills: boolean;
   installCustomSkills: boolean;
+  preset: PresetName;
   dryRun?: boolean;
   reset: boolean;
 }

@@ -7,7 +7,7 @@ import { log } from './logger';
 describe('logger', () => {
   const testLogFile = path.join(
     process.env.HOME || os.tmpdir(),
-    '.local/share/opencode/oh-my-opencode-slim.log',
+    '.local/share/opencode/po-po-code.log',
   );
 
   beforeEach(() => {

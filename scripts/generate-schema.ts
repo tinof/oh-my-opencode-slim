@@ -13,7 +13,7 @@ import { PluginConfigSchema } from '../src/config/schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
-const outputPath = join(rootDir, 'oh-my-opencode-slim.schema.json');
+const outputPath = join(rootDir, 'po-po-code.schema.json');
 
 const schema = z.toJSONSchema(PluginConfigSchema, {
   // Use 'input' so defaulted fields are optional in the schema,
