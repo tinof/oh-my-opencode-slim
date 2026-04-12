@@ -24,7 +24,7 @@ This updated architecture pivots to:
 
 ## 1.1 Tool Integration Layer
 *   **Serena MCP:** Structural Code Navigation (LSP-level go-to-definition, references).
-*   **MorphLLM MCP:** Semantic Search (WarpGrep v2) + FastApply edits.
+*   **MorphLLM Plugin** (`@morphllm/opencode-morph-plugin`): WarpGrep codebase/GitHub search + `morph_edit` (FastApply) + automatic context compaction. Installed as an Opencode plugin (not an MCP server).
 
 ## 1.2 Plugin Modifications (Active)
 *   **Explorer Agent:** Broad-to-narrow search workflow defined.

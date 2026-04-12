@@ -49,13 +49,10 @@ bun run dev         # build then launch opencode
 | `browser` | `browser.ts` | Visual QA + headless browser automation. Holds `chrome-devtools` MCP behind firewall. |
 | `ops` | `ops.ts` | Builds, logs, bash, server ops. Execution-focused, no research. |
 | `designer` | `designer.ts` | UI/UX specialist. Exclusive owner of `impeccable` design skill suite. |
-| `explorer` | `explorer.ts` | Codebase navigation (Serena LSP, Morph semantic search, Context7, grep.app). |
+| `explorer` | `explorer.ts` | Codebase navigation (Serena LSP, WarpGrep via MorphLLM plugin, Context7, grep.app). |
 | `oracle` | `oracle.ts` | Deep reasoning for hard bugs, architecture, and code review. |
-| `council`* | council subsystem | Multi-agent voting (councillor, council-master). |
 
-\* Council agents (`council`, `councillor`, `council-master`) are internal — only `CouncilManager` spawns them.
-
-- Orchestrator delegates to subagents; fixer/explorer/librarian/oracle are leaf nodes
+- Orchestrator delegates to subagents; browser/ops/designer/explorer/oracle are leaf nodes
 - Default models defined in `src/config/constants.ts` → `DEFAULT_MODELS`
 - Orchestrator model is resolved at runtime via priority fallback (undefined default)
 - Delegation rules in `SUBAGENT_DELEGATION_RULES` (same file)

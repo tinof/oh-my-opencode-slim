@@ -36,7 +36,7 @@ No more token-heavy polling loops. The `create_monitor` tool lets the Orchestrat
 | **@orchestrator** | `gpt-5.3-codex` | **The Brain.** Answers simple queries; delegates heavy work. *No heavy MCPs — pristine context.* |
 | **@browser** | `gemini-3.1-pro-preview` | **Visual / UI path.** Holds `chrome-devtools` behind a context firewall. |
 | **@ops** | `gemini-3-flash-preview` | **Execution / ops path.** Builds, logs, `bash`, `monitor`. |
-| **@explorer** | `gemini-3-flash-preview` | **Codebase scout.** Holds `serena`, `morph-mcp`. |
+| **@explorer** | `gemini-3-flash-preview` | **Codebase scout.** Holds `serena`. WarpGrep via MorphLLM plugin. |
 | **@designer** | `gemini-3.1-pro-preview` | **UI/UX specialist.** Design frameworks and implementation. |
 | **@oracle** | `claude-opus-4.6` | **Deep reasoning** for hard bugs and architecture. |
 
@@ -105,13 +105,48 @@ The `copilot` preset keeps the Orchestrator lean while sub-agents use large-cont
     "explorer": {
       "model": "github-copilot/gemini-3-flash-preview",
       "temperature": 1,
-      "mcps": ["serena", "morph-mcp"]
+      "mcps": ["serena"]
     }
   }
 }
 ```
 
 To override individual agents without changing presets, add entries under `"agents"` — they merge on top of the active preset.
+
+---
+
+## 🔬 MorphLLM Plugin
+
+Po-po-code is designed to work with the official **[opencode-morph-plugin](https://github.com/morphllm/opencode-morph-plugin)** — an Opencode plugin that provides:
+
+- **`morph_edit`** — 10,500+ tok/s FastApply code editing with lazy markers
+- **`warpgrep_codebase_search`** — fast agentic semantic codebase search (+4% SWE-Bench, -15% cost)
+- **`warpgrep_github_search`** — search public GitHub repos without cloning
+- **Compaction** — automatic context compression (25,000+ tok/s, runs in background)
+
+### Install
+
+```bash
+# Get a Morph API key at https://morphllm.com/dashboard/api-keys
+export MORPH_API_KEY="sk-..."   # add to ~/.zshrc to persist
+
+cd ~/.config/opencode
+bun i @morphllm/opencode-morph-plugin
+```
+
+Then register it in `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@morphllm/opencode-morph-plugin"],
+  "instructions": [
+    "node_modules/@morphllm/opencode-morph-plugin/instructions/morph-tools.md"
+  ]
+}
+```
+
+> **Note:** Unlike the old `morph-mcp` MCP server approach, the official plugin registers tools globally (available to all agents). Routing is enforced via agent prompt instructions — `@explorer` is delegated WarpGrep searches; `@ops` uses `morph_edit` for large code edits. The orchestrator's context firewall prompt already guards against direct orchestrator use.
 
 ---
 

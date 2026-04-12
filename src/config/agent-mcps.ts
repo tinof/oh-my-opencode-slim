@@ -10,10 +10,10 @@ import {
 export const DEFAULT_AGENT_MCPS: Record<AgentName, string[]> = {
   orchestrator: [],
   browser: ['chrome-devtools'],
-  ops: ['morph-mcp'],
+  ops: [],
   designer: [],
   oracle: ['serena', 'linkup', 'context7'],
-  explorer: ['serena', 'morph-mcp', 'context7', 'grep_app'],
+  explorer: ['serena', 'context7', 'grep_app'],
 };
 
 /**

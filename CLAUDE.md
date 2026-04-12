@@ -49,7 +49,7 @@ bun run dev         # build then launch opencode
 | `browser` | `browser.ts` | Visual QA + headless browser automation. Holds `chrome-devtools` MCP behind firewall. |
 | `ops` | `ops.ts` | Builds, logs, bash, server ops. Execution-focused, no research. |
 | `designer` | `designer.ts` | UI/UX specialist. Exclusive owner of `impeccable` design skill suite. |
-| `explorer` | `explorer.ts` | Codebase navigation (Serena LSP, Morph semantic search, Context7, grep.app). |
+| `explorer` | `explorer.ts` | Codebase navigation (Serena LSP, WarpGrep via MorphLLM plugin, Context7, grep.app). |
 | `oracle` | `oracle.ts` | Deep reasoning for hard bugs, architecture, and code review. |
 
 - Orchestrator delegates to subagents; browser/ops/designer/explorer/oracle are leaf nodes
