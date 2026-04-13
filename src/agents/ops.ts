@@ -22,7 +22,7 @@ const OPS_PROMPT = `You are Ops - a Linux server, bash, and runtime execution sp
 - File system operations and batch transformations
 
 **Constraints**:
-- NO external research (no websearch, context7, grep_app)
+- NO external research (no linkup, context7, grep_app)
 - NO delegation (no background_task, no spawning subagents)
 - No multi-step research/planning; minimal execution sequence ok
 - If context is insufficient: use grep/glob/lsp_diagnostics directly — do not delegate

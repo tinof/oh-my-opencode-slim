@@ -334,7 +334,7 @@ describe('deepMerge behavior', () => {
     fs.writeFileSync(
       path.join(userOpencodeDir, 'po-po-code.json'),
       JSON.stringify({
-        disabled_mcps: ['websearch'],
+        disabled_mcps: ['linkup'],
       }),
     );
 

@@ -1,6 +1,6 @@
 # MCP Servers
 
-Built-in Model Context Protocol (MCP) servers ship with oh-my-opencode-slim and give agents access to external tools — web search, library documentation, and code search.
+Built-in Model Context Protocol (MCP) servers ship with po-po-code and give agents access to external tools — web search, library documentation, and code search.
 
 ---
 
@@ -8,9 +8,19 @@ Built-in Model Context Protocol (MCP) servers ship with oh-my-opencode-slim and 
 
 | MCP | Purpose | Endpoint |
 |-----|---------|----------|
-| `websearch` | Real-time web search via Exa AI | `https://mcp.exa.ai/mcp` |
+| `linkup` | Real-time web search and URL content extraction via [Linkup](https://linkup.so) | `https://mcp.linkup.so/mcp` |
 | `context7` | Official library documentation (up-to-date) | `https://mcp.context7.com/mcp` |
 | `grep_app` | GitHub code search via grep.app | `https://mcp.grep.app` |
+
+### Linkup Setup
+
+Linkup requires an API key passed as a query parameter. Po-po-code handles the wiring automatically — just set the environment variable:
+
+```bash
+export LINKUP_API_KEY="your-api-key-here"  # add to ~/.zshrc to persist
+```
+
+Sign up at [linkup.so](https://linkup.so) — the free tier includes **$5 of credits per month**, which in practice is enough for heavy daily use.
 
 ---
 
@@ -18,24 +28,24 @@ Built-in Model Context Protocol (MCP) servers ship with oh-my-opencode-slim and 
 
 | Agent | Default MCPs |
 |-------|-------------|
-| `orchestrator` | `*` |
-| `librarian` | `websearch`, `context7`, `grep_app` |
+| `orchestrator` | none (strict context firewall) |
+| `browser` | `chrome-devtools` |
+| `ops` | none |
 | `designer` | none |
-| `oracle` | none |
-| `explorer` | none |
-| `fixer` | none |
+| `oracle` | `serena`, `linkup`, `context7` |
+| `explorer` | `serena`, `context7`, `grep_app` |
 
 ---
 
 ## Configuring MCP Access
 
-Control which MCPs each agent can use via the `mcps` array in your preset config (`~/.config/opencode/oh-my-opencode-slim.json` or `.jsonc`):
+Control which MCPs each agent can use via the `mcps` array in your config (`~/.config/opencode/po-po-code.jsonc` or `.opencode/po-po-code.jsonc`):
 
 | Syntax | Meaning |
 |--------|---------|
 | `["*"]` | All MCPs |
 | `["*", "!context7"]` | All MCPs except `context7` |
-| `["websearch", "context7"]` | Only listed MCPs |
+| `["linkup", "context7"]` | Only listed MCPs |
 | `[]` | No MCPs |
 | `["!*"]` | Deny all MCPs |
 
@@ -46,22 +56,17 @@ Control which MCPs each agent can use via the `mcps` array in your preset config
 
 **Example:**
 
-```json
+```jsonc
 {
-  "presets": {
-    "my-preset": {
-      "orchestrator": {
-        "mcps": ["*"]
-      },
-      "librarian": {
-        "mcps": ["websearch", "context7", "grep_app"]
-      },
-      "oracle": {
-        "mcps": ["*", "!websearch"]
-      },
-      "fixer": {
-        "mcps": []
-      }
+  "agents": {
+    "orchestrator": {
+      "mcps": []
+    },
+    "oracle": {
+      "mcps": ["serena", "linkup", "context7"]
+    },
+    "explorer": {
+      "mcps": ["serena", "context7", "grep_app", "linkup"]
     }
   }
 }
@@ -71,11 +76,11 @@ Control which MCPs each agent can use via the `mcps` array in your preset config
 
 ## Disabling MCPs Globally
 
-To disable specific MCPs for all agents regardless of preset, add them to `disabled_mcps` at the root of your config:
+To disable specific MCPs for all agents regardless of config, add them to `disabled_mcps` at the root of your config:
 
 ```json
 {
-  "disabled_mcps": ["websearch"]
+  "disabled_mcps": ["linkup"]
 }
 ```
 

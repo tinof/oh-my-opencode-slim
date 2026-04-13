@@ -80,7 +80,7 @@ FailoverConfig
 - `TmuxLayout`: Layout enum (`main-horizontal`, `main-vertical`, `tiled`, `even-horizontal`, `even-vertical`)
 - `Preset`: Named agent configuration presets
 - `AgentName`: Union type of all agent names
-- `McpName`: Union type of available MCPs (`'websearch'`, `'context7'`, `'grep_app'`)
+- `McpName`: Union type of available MCPs (`'linkup'`, `'context7'`, `'grep_app'`)
 - `BackgroundTaskConfig`: Background task concurrency settings
 - `FailoverConfig`: Failover behavior configuration
 - `ModelEntry`: Normalized model entry with optional per-model variant (`{ id: string; variant?: string }`)

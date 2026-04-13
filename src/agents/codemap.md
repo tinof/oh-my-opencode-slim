@@ -60,11 +60,11 @@ All agents follow a consistent factory pattern:
 
 | Agent | Primary Focus | Tools | Constraints | Temperature |
 |-------|--------------|-------|-------------|-------------|
-| Explorer | Codebase navigation | grep, glob, ast_grep_search | Read-only, parallel | 0.1 |
-| Librarian | External docs | context7, grep_app, websearch | Evidence-based, citations required | 0.1 |
-| Oracle | Architecture guidance | Analysis tools, code review | Read-only, advisory | 0.1 |
+| Explorer | Codebase navigation | grep, glob, ast_grep_search, serena, context7, grep_app | Read-only, parallel | 0.1 |
+| Oracle | Architecture guidance | serena, linkup, context7 | Read-only, advisory | 0.1 |
 | Designer | UI/UX implementation | Tailwind, CSS, animations | Visual excellence priority | 0.7 |
-| Fixer | Implementation | Edit/write, lsp_diagnostics | No research/delegation, structured output | 0.2 |
+| Browser | Visual QA / headless browser | chrome-devtools | Context firewall | 0.1 |
+| Ops | Builds, logs, bash, server ops | Edit/write, lsp_diagnostics | No research/delegation | 0.2 |
 
 ## Flow
 

@@ -12,10 +12,10 @@ This is the exact configuration the author runs day-to-day. It mixes three provi
   "presets": {
     "best": { "orchestrator": { "model": "openai/gpt-5.4", "skills": [ "*" ], "mcps": [ "*"] },
       "oracle": { "model": "openai/gpt-5.4", "variant": "high", "skills": [], "mcps": [] },
-      "librarian": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [ "websearch", "context7", "grep_app" ] },
-      "explorer": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [] },
+      "explorer": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": ["serena", "context7", "grep_app"] },
       "designer": { "model": "github-copilot/gemini-3.1-pro-preview", "skills": [ "agent-browser" ], "mcps": [] },
-      "fixer": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [] }
+      "ops": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [] },
+      "browser": { "model": "github-copilot/gemini-3.1-pro-preview", "skills": [], "mcps": ["chrome-devtools"] }
     }
   },
   "multiplexer": {
